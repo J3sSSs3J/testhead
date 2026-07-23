@@ -1,90 +1,179 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ametrades - Futuristic Portfolio</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ametrades — Performance di trading verificabile in tempo reale</title>
+  <meta name="description" content="Il portfolio di trading di ametrades: ogni numero arriva in diretta dal conto cTrader, in sola lettura. Conto, posizioni aperte, trade chiusi e statistiche verificabili, senza screenshot." />
+  <meta name="theme-color" content="#0a0e14" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%230a0e14'/><text x='16' y='23' font-family='monospace' font-size='20' font-weight='700' fill='%23c9a25e' text-anchor='middle'>A</text></svg>" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,400..800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
   <link rel="stylesheet" href="style.css" />
-  <link rel="stylesheet" href="force-style.css" />
 </head>
 <body>
 
-  <!-- Pulsanti Fluttuanti -->
-  <ul class="nav-links">
-    <li><a href="#home">Home</a></li>
-    <li><a href="#about">Chi Sono</a></li>
-    <li><a href="#portfolio">Portfolio</a></li>
-    <li><button onclick="window.location.href='/login-ctrader-oauth'" class="login-btn">Login cTrader</button></li>
-  </ul>
+  <!-- ==================== NAVIGAZIONE ==================== -->
+  <header class="nav" role="banner">
+    <a class="brand" id="logo-home" href="#home" aria-label="ametrades — vai alla home">
+      <span class="brand-mark" aria-hidden="true">
+        <span class="brand-mark-ring"></span>
+        <span class="brand-mark-letter">A</span>
+      </span>
+      <span class="brand-word">ametrades</span>
+    </a>
 
-  <!-- Logo Ametrades - Futuristic Design -->
-  <div class="trading-logo" id="logo-home">
-    <div class="logo-container">
-      <div class="logo-core">
-        <div class="logo-ring-outer"></div>
-        <div class="logo-ring-middle"></div>
-        <div class="logo-ring-inner"></div>
-        <div class="logo-core-center">
-          <div class="logo-core-glow"></div>
-          <div class="logo-text">A</div>
-        </div>
-        <div class="logo-energy-particles">
-          <div class="energy-particle"></div>
-          <div class="energy-particle"></div>
-          <div class="energy-particle"></div>
-          <div class="energy-particle"></div>
-          <div class="energy-particle"></div>
-          <div class="energy-particle"></div>
-        </div>
-      </div>
-      <span class="trading-text">ametrades</span>
-    </div>
-  </div>
+    <nav class="nav-links" aria-label="Navigazione principale">
+      <a href="#home" data-section="home" class="is-active">Home</a>
+      <a href="#about" data-section="about">Chi sono</a>
+      <a href="#projects" data-section="projects">Progetti</a>
+      <a href="#portfolio" data-section="portfolio">Portfolio</a>
+      <a href="/login-ctrader-oauth" class="nav-login">Login cTrader</a>
+    </nav>
+  </header>
 
-  <!-- Hero Section -->
-  <section class="hero" id="home">
+  <!-- ==================== HERO / HOME ==================== -->
+  <section class="hero" id="home" aria-label="Introduzione">
     <div class="hero-content">
-      <!-- Spazio per futuro contenuto hero -->
-    </div>
-    <!-- Canvas Three.js sarà inserito qui via JS -->
-  </section>
+      <div class="hero-top">
+        <p class="eyebrow"><span class="eyebrow-tick" aria-hidden="true"></span>Sola lettura · dati live cTrader</p>
+        <h1 class="hero-title">Numeri,<br />non promesse.</h1>
+      </div>
 
-  <!-- Chi Sono Section -->
-  <section class="section-content" id="content-about">
-    <div class="section-text left">
-      <h2 class="section-title">CHI SONO</h2>
-      <div class="glow-line"></div>
-      <p class="section-description">
-        Sviluppatore specializzato in integrazioni API e visualizzazione dati finanziari.
-        Esperto nel creare interfacce moderne per il trading e l'analisi di mercato.
-      </p>
-      <div class="tech-stack">
-        <span class="tech-badge">API Integration</span>
-        <span class="tech-badge">Data Visualization</span>
-        <span class="tech-badge">Web Development</span>
-        <span class="tech-badge">Financial Tech</span>
+      <div class="hero-bottom">
+        <p class="hero-sub">
+          Ogni cifra su questo sito arriva in diretta dal mio conto cTrader, in sola
+          lettura. Performance che puoi verificare — non a parole.
+        </p>
+
+        <!-- Signature: quote line -->
+        <div class="quote-line" aria-hidden="true">
+          <div class="quote-line-rule"></div>
+          <div class="quote-line-labels">
+            <span>Sola lettura</span>
+            <span>30 giorni di storico</span>
+            <span>Aggiornamento live</span>
+          </div>
+        </div>
+
+        <div class="hero-actions">
+          <a href="#portfolio" data-section="portfolio" class="btn btn-primary">Vedi il portfolio</a>
+          <a href="/login-ctrader-oauth" class="btn btn-ghost">Login cTrader</a>
+        </div>
       </div>
     </div>
   </section>
 
-  <!-- Portafoglio Section -->
-  <section class="section-content" id="content-portfolio">
-    <div class="section-text right">
-      <h2 class="section-title">PROGETTI</h2>
-      <div class="glow-line"></div>
-      <p class="section-description">
-        Progetti focalizzati su integrazioni con piattaforme di trading e creazione di dashboard interattive
-        per l'analisi e la visualizzazione di dati finanziari in tempo reale.
-      </p>
-      <div class="portfolio-items">
-        <div class="portfolio-item">cTrader API Integration</div>
-        <div class="portfolio-item">Real-time Trading Dashboard</div>
-        <div class="portfolio-item">Financial Data Analytics</div>
-        <div class="portfolio-item">Custom Trading Tools</div>
+  <!-- ==================== CHI SONO ==================== -->
+  <section class="panel panel-left" id="content-about" role="region" aria-label="Chi sono">
+    <div class="panel-inner">
+      <p class="eyebrow"><span class="eyebrow-index">02</span> Chi sono</p>
+      <h2 class="panel-title">Un trader che<br />mostra i numeri.</h2>
+
+      <div class="quote-line quote-line--sm" aria-hidden="true">
+        <div class="quote-line-rule"></div>
       </div>
+
+      <div class="prose">
+        <p>
+          Faccio trading con un metodo semplice e ripetibile: gestione del rischio prima
+          di tutto, decisioni basate sui dati e nessuna scorciatoia. Credo che la fiducia
+          si costruisca mostrando i risultati reali, comprese le perdite.
+        </p>
+        <p>
+          Sono anche lo sviluppatore di questo sito: l'ho collegato alla cTrader Open API
+          in sola lettura, così conto, posizioni e storico che vedi nel Portfolio sono
+          quelli veri, aggiornati in tempo reale. Nessuno screenshot, nessun dato ritoccato.
+        </p>
+      </div>
+
+      <ul class="chips" aria-label="Competenze">
+        <li>Gestione del rischio</li>
+        <li>Analisi tecnica</li>
+        <li>Integrazione API</li>
+        <li>Visualizzazione dati</li>
+        <li>cTrader Open API</li>
+      </ul>
     </div>
   </section>
 
+  <!-- ==================== PROGETTI ==================== -->
+  <section class="panel panel-right" id="content-projects" role="region" aria-label="Progetti">
+    <div class="panel-inner">
+      <p class="eyebrow"><span class="eyebrow-index">03</span> Progetti</p>
+      <h2 class="panel-title">Strumenti che<br />uso davvero.</h2>
+
+      <div class="quote-line quote-line--sm" aria-hidden="true">
+        <div class="quote-line-rule"></div>
+      </div>
+
+      <ul class="projects">
+        <li class="project">
+          <span class="project-ref" aria-hidden="true">R-01</span>
+          <div class="project-body">
+            <h3 class="project-title">Dashboard cTrader in sola lettura</h3>
+            <p class="project-desc">
+              Questa stessa dashboard: si collega alla cTrader Open API via OAuth e mostra
+              conto, posizioni e storico in tempo reale, senza alcun permesso di trading.
+            </p>
+            <div class="project-tags"><span>OAuth</span><span>WebSocket</span><span>Node.js</span></div>
+          </div>
+        </li>
+        <li class="project">
+          <span class="project-ref" aria-hidden="true">R-02</span>
+          <div class="project-body">
+            <h3 class="project-title">Motore statistiche di performance</h3>
+            <p class="project-desc">
+              Calcolo di win rate, profitto totale e profitto medio sugli ultimi 30 giorni,
+              direttamente dai deal chiusi restituiti dall'API.
+            </p>
+            <div class="project-tags"><span>Analytics</span><span>cTrader</span></div>
+          </div>
+        </li>
+        <li class="project">
+          <span class="project-ref" aria-hidden="true">R-03</span>
+          <div class="project-body">
+            <h3 class="project-title">Scena 3D interattiva</h3>
+            <p class="project-desc">
+              L'interfaccia è costruita attorno a un modello 3D in tempo reale con Three.js,
+              che accompagna il passaggio da una sezione all'altra.
+            </p>
+            <div class="project-tags"><span>Three.js</span><span>WebGL</span></div>
+          </div>
+        </li>
+        <li class="project">
+          <span class="project-ref" aria-hidden="true">R-04</span>
+          <div class="project-body">
+            <h3 class="project-title">Backend Express integrato</h3>
+            <p class="project-desc">
+              Un solo processo Node serve il sito e fa da ponte verso cTrader: niente CORS,
+              niente database, niente bundler. Semplice da leggere e da fidarsi.
+            </p>
+            <div class="project-tags"><span>Express</span><span>Architettura</span></div>
+          </div>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ==================== PORTFOLIO (dati live cTrader, iniettati da auto-data.js) ==================== -->
+  <section class="panel panel-portfolio" id="content-portfolio" role="region" aria-label="Portfolio — dati cTrader">
+    <div class="panel-inner" id="portfolio-mount">
+      <p class="portfolio-loading">Caricamento dati cTrader…</p>
+    </div>
+  </section>
+
+  <!-- ==================== FOOTER ==================== -->
+  <footer class="site-footer" role="contentinfo">
+    <span class="foot-brand">© 2026 ametrades</span>
+    <span class="foot-note"><span class="foot-dot" aria-hidden="true"></span>Dati cTrader in sola lettura</span>
+    <span class="foot-hint">Naviga dal menu in alto</span>
+  </footer>
+
+  <!-- ==================== SCRIPTS ==================== -->
   <script type="importmap">
     {
       "imports": {
@@ -94,16 +183,7 @@
     }
   </script>
   <script type="module" src="./main.js"></script>
-  <script src="./effects.js"></script>
   <script src="./stars.js"></script>
-  <script src="./futuristic-effects.js"></script>
-
-  <!-- Funzione Login -->
-  <script>
-    function redirectToLogin() {
-      window.location.href = '/login-ctrader-oauth';
-    }
-  </script>
-  <script src="auto-data.js"></script>
+  <script src="./auto-data.js"></script>
 </body>
 </html>
