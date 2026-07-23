@@ -18,7 +18,7 @@
 
   <!-- ==================== NAVIGAZIONE ==================== -->
   <header class="nav" role="banner">
-    <a class="brand" id="logo-home" href="#home" aria-label="ametrades — vai alla home">
+    <a class="brand" id="logo-home" href="#home" data-section="home" aria-label="ametrades — vai alla home">
       <span class="brand-mark" aria-hidden="true">
         <span class="brand-mark-ring"></span>
         <span class="brand-mark-letter">A</span>
@@ -31,7 +31,10 @@
       <a href="#about" data-section="about">Chi sono</a>
       <a href="#projects" data-section="projects">Progetti</a>
       <a href="#portfolio" data-section="portfolio">Portfolio</a>
-      <a href="/login-ctrader-oauth" class="nav-login">Login cTrader</a>
+      <a href="/login-ctrader-oauth" class="nav-login js-login-btn">Login cTrader</a>
+      <span class="nav-status js-login-status" hidden aria-live="polite">
+        <span class="dot" aria-hidden="true"></span>Connesso
+      </span>
     </nav>
   </header>
 
@@ -61,7 +64,7 @@
 
         <div class="hero-actions">
           <a href="#portfolio" data-section="portfolio" class="btn btn-primary">Vedi il portfolio</a>
-          <a href="/login-ctrader-oauth" class="btn btn-ghost">Login cTrader</a>
+          <a href="/login-ctrader-oauth" class="btn btn-ghost js-login-btn">Login cTrader</a>
         </div>
       </div>
     </div>

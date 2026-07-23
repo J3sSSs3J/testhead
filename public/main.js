@@ -171,22 +171,14 @@ function setupNavigation(state) {
     if (hero) hero.classList.toggle('is-hidden', section !== 'home');
   }
 
-  // Tutti gli elementi con data-section (nav + CTA della hero) navigano.
-  document.querySelectorAll('[data-section]').forEach((el) => {
-    el.addEventListener('click', (e) => {
-      e.preventDefault();
-      activate(el.dataset.section);
-    });
+  // Navigazione delegata: intercetta ogni elemento con data-section (nav, brand,
+  // CTA della hero) — funziona anche per elementi mostrati/aggiornati dopo l'avvio.
+  document.addEventListener('click', (e) => {
+    const el = e.target.closest('[data-section]');
+    if (!el) return;
+    e.preventDefault();
+    activate(el.dataset.section);
   });
-
-  // Il brand riporta alla home.
-  const brand = document.getElementById('logo-home');
-  if (brand) {
-    brand.addEventListener('click', (e) => {
-      e.preventDefault();
-      activate('home');
-    });
-  }
 
   return activate;
 }

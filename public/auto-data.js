@@ -14,10 +14,19 @@ class AutoAccountData {
     return document.getElementById('portfolio-mount') || document.getElementById('content-portfolio');
   }
 
+  // Feedback visivo di autenticazione: a login avvenuto nasconde i pulsanti
+  // "Login cTrader" (nav + hero) e mostra l'indicatore "Connesso".
+  updateAuthUI(connected) {
+    document.querySelectorAll('.js-login-btn').forEach((el) => { el.hidden = !!connected; });
+    document.querySelectorAll('.js-login-status').forEach((el) => { el.hidden = !connected; });
+  }
+
   async initialize() {
     try {
       const res = await fetch('/api/status');
       const status = await res.json();
+
+      this.updateAuthUI(!!status.authenticated);
 
       if (!status.authenticated) {
         this.showLoginButton();

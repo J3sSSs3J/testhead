@@ -280,6 +280,32 @@ canvas {
 .nav-login::after { display: none; }
 .nav-login:hover { background: var(--brass-wash); border-color: var(--brass); }
 
+/* [hidden] deve vincere anche su elementi con display esplicito (.btn, .nav-login) */
+[hidden] { display: none !important; }
+
+/* Indicatore di sessione: mostrato al posto del login quando connesso */
+.nav-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  letter-spacing: 0.06em;
+  color: var(--up);
+  padding: 8px 15px;
+  border: 1px solid rgba(78, 168, 129, 0.32);
+  border-radius: 3px;
+  background: var(--up-wash);
+}
+.nav-status .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--up);
+  box-shadow: 0 0 0 3px var(--up-wash);
+  animation: live-pulse 2.4s ease-in-out infinite;
+}
+
 /* ============================================================================
    Bottoni
    ========================================================================== */
