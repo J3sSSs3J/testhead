@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ametrades - Futuristic Portfolio</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="force-style.css" />
+</head>
+<body>
+
+  <!-- Pulsanti Fluttuanti -->
+  <ul class="nav-links">
+    <li><a href="#home">Home</a></li>
+    <li><a href="#about">Chi Sono</a></li>
+    <li><a href="#portfolio">Portfolio</a></li>
+    <li><button onclick="window.location.href='/login-ctrader-oauth'" class="login-btn">Login cTrader</button></li>
+  </ul>
+
+  <!-- Logo Ametrades - Futuristic Design -->
+  <div class="trading-logo" id="logo-home">
+    <div class="logo-container">
+      <div class="logo-core">
+        <div class="logo-ring-outer"></div>
+        <div class="logo-ring-middle"></div>
+        <div class="logo-ring-inner"></div>
+        <div class="logo-core-center">
+          <div class="logo-core-glow"></div>
+          <div class="logo-text">A</div>
+        </div>
+        <div class="logo-energy-particles">
+          <div class="energy-particle"></div>
+          <div class="energy-particle"></div>
+          <div class="energy-particle"></div>
+          <div class="energy-particle"></div>
+          <div class="energy-particle"></div>
+          <div class="energy-particle"></div>
+        </div>
+      </div>
+      <span class="trading-text">ametrades</span>
+    </div>
+  </div>
+
+  <!-- Hero Section -->
+  <section class="hero" id="home">
+    <div class="hero-content">
+      <!-- Spazio per futuro contenuto hero -->
+    </div>
+    <!-- Canvas Three.js sarà inserito qui via JS -->
+  </section>
+
+  <!-- Chi Sono Section -->
+  <section class="section-content" id="content-about">
+    <div class="section-text left">
+      <h2 class="section-title">CHI SONO</h2>
+      <div class="glow-line"></div>
+      <p class="section-description">
+        Sviluppatore specializzato in integrazioni API e visualizzazione dati finanziari.
+        Esperto nel creare interfacce moderne per il trading e l'analisi di mercato.
+      </p>
+      <div class="tech-stack">
+        <span class="tech-badge">API Integration</span>
+        <span class="tech-badge">Data Visualization</span>
+        <span class="tech-badge">Web Development</span>
+        <span class="tech-badge">Financial Tech</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Portafoglio Section -->
+  <section class="section-content" id="content-portfolio">
+    <div class="section-text right">
+      <h2 class="section-title">PROGETTI</h2>
+      <div class="glow-line"></div>
+      <p class="section-description">
+        Progetti focalizzati su integrazioni con piattaforme di trading e creazione di dashboard interattive
+        per l'analisi e la visualizzazione di dati finanziari in tempo reale.
+      </p>
+      <div class="portfolio-items">
+        <div class="portfolio-item">cTrader API Integration</div>
+        <div class="portfolio-item">Real-time Trading Dashboard</div>
+        <div class="portfolio-item">Financial Data Analytics</div>
+        <div class="portfolio-item">Custom Trading Tools</div>
+      </div>
+    </div>
+  </section>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.182.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.182.0/examples/jsm/"
+      }
+    }
+  </script>
+  <script type="module" src="./main.js"></script>
+  <script src="./effects.js"></script>
+  <script src="./stars.js"></script>
+  <script src="./futuristic-effects.js"></script>
+
+  <!-- Funzione Login -->
+  <script>
+    function redirectToLogin() {
+      window.location.href = '/login-ctrader-oauth';
+    }
+  </script>
+  <script src="auto-data.js"></script>
+</body>
+</html>
