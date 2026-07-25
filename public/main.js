@@ -143,12 +143,22 @@ function loadModel(scene) {
 
 // ==================== LOOP DI RENDERING ====================
 function setupAnimationLoop(renderer, scene, camera, model, state) {
+  // Rotazione idle continua ("il corpo che gira"), disattivata con reduced-motion.
+  const SPIN = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 0.2; // rad/s
+  let last = performance.now();
+  let idle = 0;
+
   function animate() {
     requestAnimationFrame(animate);
+    const now = performance.now();
+    const dt = Math.min((now - last) / 1000, 0.05);
+    last = now;
+    idle += SPIN * dt;
+
     state.update();
     if (model) {
       model.position.copy(state.current.position);
-      model.rotation.y = state.current.rotation;
+      model.rotation.y = state.current.rotation + idle;
     }
     camera.position.z += (state.current.cameraZ - camera.position.z) * 0.06;
     renderer.render(scene, camera);

@@ -11,9 +11,9 @@
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   const LAYERS = [
-    { count: 150, size: 1,   depth: 6,  dur: '7s',  delay: '0s'   },
-    { count: 90,  size: 1.6, depth: 12, dur: '5.5s', delay: '-2s' },
-    { count: 42,  size: 2.2, depth: 22, dur: '4.5s', delay: '-1s' },
+    { count: 260, size: 1.2, depth: 6,  dur: '7s',   delay: '0s',  blur: 0 },
+    { count: 150, size: 1.8, depth: 12, dur: '5.5s', delay: '-2s', blur: 0.5 },
+    { count: 70,  size: 2.6, depth: 22, dur: '4.5s', delay: '-1s', blur: 1 },
   ];
 
   const container = document.createElement('div');
@@ -22,19 +22,19 @@
 
   const layerEls = [];
 
-  function boxShadows(count) {
+  function boxShadows(count, blur) {
     const w = Math.max(window.innerWidth, 1800);
     const h = Math.max(window.innerHeight, 1300);
     const parts = [];
     for (let i = 0; i < count; i++) {
       const x = Math.round(Math.random() * w);
       const y = Math.round(Math.random() * h);
-      const golden = Math.random() < 0.08;
-      const alpha = (0.3 + Math.random() * 0.6).toFixed(2);
+      const golden = Math.random() < 0.09;
+      const alpha = (0.5 + Math.random() * 0.5).toFixed(2);
       const color = golden
         ? `rgba(226, 196, 137, ${alpha})`
         : `rgba(255, 255, 255, ${alpha})`;
-      parts.push(`${x}px ${y}px 0 0 ${color}`);
+      parts.push(`${x}px ${y}px ${blur}px 0 ${color}`);
     }
     return parts.join(', ');
   }
@@ -47,7 +47,7 @@
       el.className = `star-layer twk-${i}`;
       el.style.width = `${cfg.size}px`;
       el.style.height = `${cfg.size}px`;
-      el.style.boxShadow = boxShadows(cfg.count);
+      el.style.boxShadow = boxShadows(cfg.count, cfg.blur);
       el.style.animationDuration = cfg.dur;
       el.style.animationDelay = cfg.delay;
       container.appendChild(el);

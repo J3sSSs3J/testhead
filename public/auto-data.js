@@ -83,8 +83,11 @@ class AutoAccountData {
       return data;
     };
 
-    const [balance, positions, history] = await Promise.all([
-      fetchJson(`/api/balance?accountId=${id}`).catch(e => ({ __error: e.message })),
+    // Prima UNA sola richiesta: fa autorizzare l'account al backend una volta.
+    // Evita la race quando 3 chiamate parallele arrivano su un account non ancora
+    // autorizzato (il backend risponderebbe ALREADY_LOGGED_IN alle richieste extra).
+    const balance = await fetchJson(`/api/balance?accountId=${id}`).catch(e => ({ __error: e.message }));
+    const [positions, history] = await Promise.all([
       fetchJson(`/api/positions?accountId=${id}`).catch(e => ({ __error: e.message })),
       fetchJson(`/api/history?accountId=${id}&from=${from}&to=${to}&maxRows=100`).catch(e => ({ __error: e.message })),
     ]);

@@ -406,8 +406,8 @@ canvas {
 .panel-right .panel-inner { margin-left: auto; }
 .panel-portfolio {
   align-items: flex-start;
-  /* velo scuro: stacca i dati dal modello 3D retrostante */
-  background: linear-gradient(rgba(10, 14, 20, 0.62), rgba(10, 14, 20, 0.62));
+  /* velo leggero: stacca i dati dal modello 3D senza spegnere scena e stelle */
+  background: linear-gradient(rgba(10, 14, 20, 0.4), rgba(10, 14, 20, 0.4));
 }
 .panel-portfolio .panel-inner { max-width: var(--maxw); margin: 0 auto; }
 
