@@ -126,9 +126,9 @@ function loadModel(scene) {
 
         model.traverse((child) => {
           if (child.isMesh && child.material) {
-            child.material.color.set(0x1b1a17);
-            child.material.metalness = 0.45;
-            child.material.roughness = 0.6;
+            child.material.color.set(0x2b2823);
+            child.material.metalness = 0.5;
+            child.material.roughness = 0.55;
           }
         });
 

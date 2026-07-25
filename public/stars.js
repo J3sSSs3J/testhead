@@ -11,9 +11,9 @@
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   const LAYERS = [
-    { count: 260, size: 1.2, depth: 6,  dur: '7s',   delay: '0s',  blur: 0 },
-    { count: 150, size: 1.8, depth: 12, dur: '5.5s', delay: '-2s', blur: 0.5 },
-    { count: 70,  size: 2.6, depth: 22, dur: '4.5s', delay: '-1s', blur: 1 },
+    { count: 300, size: 1.4, depth: 6,  dur: '7s',   delay: '0s',  blur: 0 },
+    { count: 170, size: 2.1, depth: 12, dur: '5.5s', delay: '-2s', blur: 1 },
+    { count: 80,  size: 3,   depth: 22, dur: '4.5s', delay: '-1s', blur: 2 },
   ];
 
   const container = document.createElement('div');
@@ -30,7 +30,7 @@
       const x = Math.round(Math.random() * w);
       const y = Math.round(Math.random() * h);
       const golden = Math.random() < 0.09;
-      const alpha = (0.5 + Math.random() * 0.5).toFixed(2);
+      const alpha = (0.72 + Math.random() * 0.28).toFixed(2);
       const color = golden
         ? `rgba(226, 196, 137, ${alpha})`
         : `rgba(255, 255, 255, ${alpha})`;
