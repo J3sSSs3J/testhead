@@ -638,6 +638,8 @@ canvas:not(.starfield) {
   color: var(--muted);
   display: inline-flex; align-items: center; gap: 5px;
 }
+/* Più tag affiancati sulla stessa riga (es. lato + tipo di un ordine pendente) */
+.tag-group { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .pnl {
   font-family: var(--font-mono);
   font-weight: 600; font-size: 0.95rem;

@@ -116,6 +116,14 @@ class AutoAccountData {
     return isNaN(d) ? 'N/A' : d.toLocaleString('it-IT');
   }
 
+  // Timestamp cTrader in millisecondi (spesso serializzati come stringa dal
+  // JSON protobuf): vanno convertiti a numero prima di new Date().
+  fmtTs(ts) {
+    if (ts == null || ts === '') return 'N/A';
+    const d = new Date(Number(ts));
+    return isNaN(d) ? 'N/A' : d.toLocaleString('it-IT');
+  }
+
   symbolLabel(item) {
     return item.symbolName || (item.symbolId != null ? `#${item.symbolId}` : 'N/A');
   }
@@ -160,6 +168,11 @@ class AutoAccountData {
     return `<span class="side-tag"><span aria-hidden="true">${arrow}</span>${s || 'N/A'}</span>`;
   }
 
+  // Tag neutro (stesso stile di sideTag) per tipo/stato di un ordine pendente.
+  tag(text) {
+    return `<span class="side-tag">${text || 'N/A'}</span>`;
+  }
+
   // ---------- Rendering principale ----------
   showAllData({ balance, positions, history }) {
     const el = this.mount();
@@ -167,6 +180,11 @@ class AutoAccountData {
 
     const openPositions = (positions && !positions.__error && Array.isArray(positions.positions))
       ? positions.positions : [];
+    // Gli ordini pendenti (limit/stop non ancora eseguiti) arrivano da /api/positions
+    // in un array separato: non sono posizioni aperte e vanno mostrati a parte,
+    // altrimenti un ordine appena piazzato risulta invisibile nel Portfolio.
+    const pendingOrders = (positions && !positions.__error && Array.isArray(positions.orders))
+      ? positions.orders : [];
     const deals = this.closedDeals(history);
     const balanceOk = balance && !balance.__error;
 
@@ -268,6 +286,32 @@ class AutoAccountData {
                 </div>
               `).join('') : '<div class="pf-empty">Nessuna posizione aperta.</div>'}
             </div>
+          </div>
+        </div>
+
+        <!-- Ordini pendenti -->
+        <div class="card">
+          <div class="card-h">Ordini pendenti <span class="count">(${pendingOrders.length})</span></div>
+          <div class="row-list scroll-cap">
+            ${pendingOrders.length > 0 ? pendingOrders.map(ord => `
+              <div class="row-item">
+                <div class="row-top">
+                  <span class="sym">${this.symbolLabel(ord)}</span>
+                  <span class="tag-group">
+                    ${this.sideTag(ord.tradeSide)}
+                    ${this.tag(ord.orderType)}
+                  </span>
+                </div>
+                <div class="row-meta">
+                  <span>Stato <b>${ord.orderStatus ?? 'N/A'}</b></span>
+                  <span>Volume <b>${ord.volume ?? 'N/A'}</b></span>
+                  <span>Prezzo <b>${ord.limitPrice ?? ord.stopPrice ?? 'N/A'}</b></span>
+                  <span>SL <b>${ord.stopLoss ?? 'N/A'}</b></span>
+                  <span>TP <b>${ord.takeProfit ?? 'N/A'}</b></span>
+                  <span>Scadenza <b>${this.fmtTs(ord.expirationTimestamp)}</b></span>
+                </div>
+              </div>
+            `).join('') : '<div class="pf-empty">Nessun ordine pendente.</div>'}
           </div>
         </div>
 
