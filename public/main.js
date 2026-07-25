@@ -206,7 +206,17 @@ function onWindowResize(camera, renderer) {
 async function init() {
   const scene = createScene();
   const camera = createCamera();
-  const renderer = createRenderer();
+
+  let renderer;
+  try {
+    renderer = createRenderer();
+  } catch (error) {
+    // WebGL non disponibile (accelerazione hardware disattivata, blocklist del
+    // driver, privacy.resistFingerprinting…): il sito resta usabile senza scena.
+    console.error('[ametrades] WebGL non disponibile: la scena 3D non verrà mostrata.', error);
+    return;
+  }
+
   setupLighting(scene);
 
   let model = null;

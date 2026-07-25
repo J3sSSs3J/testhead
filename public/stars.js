@@ -1,88 +1,111 @@
 // ============================================================================
-// ametrades — starfield
-// Un solo campo stellare, performante: 3 layer, ognuno un singolo nodo DOM che
-// disegna centinaia di stelle via box-shadow. Twinkle in CSS, parallax al
-// mouse limitato con requestAnimationFrame. Sostituisce i vecchi effetti
-// sovrapposti (particelle, esagoni, data-stream, mouse-glow).
+// ametrades — starfield su canvas 2D
+// Un solo canvas: il disegno è identico su tutti i browser e non dipende dal
+// compositore (la versione precedente usava centinaia di box-shadow su un
+// elemento di pochi pixel con will-change: tecnica fragile, che Firefox può
+// non rasterizzare). Twinkle a ~14 fps e parallax leggero al mouse.
 // ============================================================================
 (function () {
   'use strict';
 
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  const LAYERS = [
-    { count: 300, size: 1.4, depth: 6,  dur: '7s',   delay: '0s',  blur: 0 },
-    { count: 170, size: 2.1, depth: 12, dur: '5.5s', delay: '-2s', blur: 1 },
-    { count: 80,  size: 3,   depth: 22, dur: '4.5s', delay: '-1s', blur: 2 },
-  ];
+  const canvas = document.createElement('canvas');
+  canvas.className = 'starfield';
+  canvas.setAttribute('aria-hidden', 'true');
+  const ctx = canvas.getContext('2d');
 
-  const container = document.createElement('div');
-  container.className = 'starfield';
-  container.setAttribute('aria-hidden', 'true');
-
-  const layerEls = [];
-
-  function boxShadows(count, blur) {
-    const w = Math.max(window.innerWidth, 1800);
-    const h = Math.max(window.innerHeight, 1300);
-    const parts = [];
-    for (let i = 0; i < count; i++) {
-      const x = Math.round(Math.random() * w);
-      const y = Math.round(Math.random() * h);
-      const golden = Math.random() < 0.09;
-      const alpha = (0.72 + Math.random() * 0.28).toFixed(2);
-      const color = golden
-        ? `rgba(226, 196, 137, ${alpha})`
-        : `rgba(255, 255, 255, ${alpha})`;
-      parts.push(`${x}px ${y}px ${blur}px 0 ${color}`);
-    }
-    return parts.join(', ');
-  }
+  let stars = [];
+  let w = 0, h = 0;
+  let px = 0, py = 0; // offset parallax
 
   function build() {
-    container.innerHTML = '';
-    layerEls.length = 0;
-    LAYERS.forEach((cfg, i) => {
-      const el = document.createElement('div');
-      el.className = `star-layer twk-${i}`;
-      el.style.width = `${cfg.size}px`;
-      el.style.height = `${cfg.size}px`;
-      el.style.boxShadow = boxShadows(cfg.count, cfg.blur);
-      el.style.animationDuration = cfg.dur;
-      el.style.animationDelay = cfg.delay;
-      container.appendChild(el);
-      layerEls.push(el);
-    });
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    w = window.innerWidth;
+    h = window.innerHeight;
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    // Densità costante a prescindere dalla dimensione dello schermo.
+    const count = Math.round((w * h) / 2400);
+    stars = [];
+    for (let i = 0; i < count; i++) {
+      const depth = Math.random();
+      stars.push({
+        x: Math.random() * w,
+        y: Math.random() * h,
+        r: 0.55 + depth * 1.35,
+        base: 0.6 + Math.random() * 0.4,
+        gold: Math.random() < 0.09,
+        phase: Math.random() * Math.PI * 2,
+        speed: 0.6 + Math.random() * 1.3,
+        depth: 4 + depth * 18,
+      });
+    }
+    draw(0);
   }
 
-  build();
-  document.addEventListener('DOMContentLoaded', () => {
-    document.body.appendChild(container);
-  });
+  function draw(t) {
+    ctx.clearRect(0, 0, w, h);
+    for (let i = 0; i < stars.length; i++) {
+      const s = stars[i];
+      const twinkle = reduce ? 1 : 0.74 + 0.26 * Math.sin(t * 0.001 * s.speed + s.phase);
+      const alpha = Math.min(1, s.base * twinkle);
+      const x = s.x + px * s.depth;
+      const y = s.y + py * s.depth;
 
-  // Parallax leggero, limitato con rAF.
-  if (!reduce && window.matchMedia('(pointer: fine)').matches) {
-    let tx = 0, ty = 0, ticking = false;
-    window.addEventListener('mousemove', (e) => {
-      tx = e.clientX / window.innerWidth - 0.5;
-      ty = e.clientY / window.innerHeight - 0.5;
-      if (!ticking) {
-        ticking = true;
-        requestAnimationFrame(() => {
-          LAYERS.forEach((cfg, i) => {
-            const el = layerEls[i];
-            if (el) el.style.transform = `translate3d(${(-tx * cfg.depth).toFixed(1)}px, ${(-ty * cfg.depth).toFixed(1)}px, 0)`;
-          });
-          ticking = false;
-        });
+      ctx.fillStyle = s.gold ? '#e2c489' : '#ffffff';
+
+      // Alone morbido sulle stelle più grandi
+      if (s.r > 1.25) {
+        ctx.globalAlpha = alpha * 0.16;
+        ctx.beginPath();
+        ctx.arc(x, y, s.r * 3.2, 0, Math.PI * 2);
+        ctx.fill();
       }
+
+      ctx.globalAlpha = alpha;
+      ctx.beginPath();
+      ctx.arc(x, y, s.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  let lastFrame = 0;
+  function loop(t) {
+    requestAnimationFrame(loop);
+    if (document.hidden) return;
+    if (t - lastFrame < 70) return; // ~14 fps: twinkle fluido, costo trascurabile
+    lastFrame = t;
+    draw(t);
+  }
+
+  function mount() {
+    document.body.appendChild(canvas);
+    build();
+    if (!reduce) requestAnimationFrame(loop);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', mount);
+  } else {
+    mount();
+  }
+
+  if (!reduce && window.matchMedia('(pointer: fine)').matches) {
+    window.addEventListener('mousemove', (e) => {
+      px = e.clientX / window.innerWidth - 0.5;
+      py = e.clientY / window.innerHeight - 0.5;
     }, { passive: true });
   }
 
-  // Rigenera dopo un resize (debounced) così la copertura resta piena.
-  let rt;
+  let resizeTimer;
   window.addEventListener('resize', () => {
-    clearTimeout(rt);
-    rt = setTimeout(build, 250);
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(build, 200);
   });
 })();
