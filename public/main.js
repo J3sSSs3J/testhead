@@ -6,6 +6,10 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
+// Stato diagnostico ispezionabile dalla console: scrivi "ametradesDiag".
+// Se risulta "undefined", il modulo non è partito (import di Three.js fallito).
+window.ametradesDiag = { three: 'caricato', webgl: 'in verifica', modello: 'in attesa' };
+
 // ==================== EASING ====================
 const Easing = {
   easeInOutCubic: (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2),
@@ -210,9 +214,11 @@ async function init() {
   let renderer;
   try {
     renderer = createRenderer();
+    window.ametradesDiag.webgl = 'OK';
   } catch (error) {
     // WebGL non disponibile (accelerazione hardware disattivata, blocklist del
     // driver, privacy.resistFingerprinting…): il sito resta usabile senza scena.
+    window.ametradesDiag.webgl = 'NON DISPONIBILE: ' + error.message;
     console.error('[ametrades] WebGL non disponibile: la scena 3D non verrà mostrata.', error);
     return;
   }
@@ -222,8 +228,10 @@ async function init() {
   let model = null;
   try {
     model = await loadModel(scene);
+    window.ametradesDiag.modello = 'caricato';
   } catch (error) {
-    console.error('Modello 3D non caricato:', error);
+    window.ametradesDiag.modello = 'ERRORE: ' + (error && error.message ? error.message : error);
+    console.error('[ametrades] Modello 3D non caricato:', error);
   }
 
   const state = new AnimationStateManager();
