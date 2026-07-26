@@ -764,7 +764,23 @@ canvas:not(.starfield) {
 
 /* ==================== PERFORMANCE CHART ==================== */
 .perf-card { margin-top: 18px; }
-.perf-kpis { margin-bottom: 14px; }
+.perf-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.perf-ranges { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.perf-chip {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.04em;
+  color: var(--muted); background: transparent;
+  border: 1px solid var(--line); border-radius: 999px;
+  padding: 5px 12px; cursor: pointer;
+  transition: color 0.18s var(--ease), border-color 0.18s var(--ease), background 0.18s var(--ease);
+}
+.perf-chip:hover { color: var(--text); border-color: var(--brass-line); }
+.perf-chip.is-active { color: var(--ink); background: var(--brass); border-color: var(--brass); }
+.perf-chip:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
 .perf-chart-wrap { position: relative; }
 .perf-chart { display: block; width: 100%; height: auto; }
 .perf-grid { stroke: var(--line-soft); stroke-width: 1; }

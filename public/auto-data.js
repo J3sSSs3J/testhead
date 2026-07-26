@@ -8,6 +8,9 @@ class AutoAccountData {
   constructor() {
     this.accounts = [];
     this.selectedAccountId = null;
+    // Vista del grafico Performance: 6 mesi mostra subito lo storico più ampio.
+    this.perfRange = '6m';
+    this.perfData = null;
   }
 
   mount() {
@@ -103,6 +106,7 @@ class AutoAccountData {
 
   async selectAccount(id) {
     this.selectedAccountId = parseInt(id, 10);
+    this.perfRange = '6m';
     await this.autoFetchAllData();
   }
 
@@ -174,6 +178,65 @@ class AutoAccountData {
     return `<span class="side-tag">${text || 'N/A'}</span>`;
   }
 
+  // Percentuale con freccia e segno; 'N/A' quando non è calcolabile
+  // (ancora non positiva o dato mancante).
+  pctParts(v) {
+    return (typeof v === 'number' && isFinite(v))
+        ? this.pnlParts(v)
+        : { cls: 'na', arrow: '', text: 'N/A' };
+  }
+
+  pctTile(title, value, sub) {
+    const p = this.pctParts(value);
+    return `
+      <div class="stat-tile">
+        <div class="stat-k">${title}</div>
+        <div class="stat-v ${p.cls}">${p.arrow ? `<span class="arrow" aria-hidden="true">${p.arrow}</span> ` : ''}${p.text}${p.text !== 'N/A' ? '<span class="stat-unit">%</span>' : ''}</div>
+        <div class="stat-sub">${sub}</div>
+      </div>`;
+  }
+
+  // Punti della vista selezionata: ancora del periodo in testa, trade chiusi
+  // del periodo, balance attuale in coda. Nessuna chiamata di rete: la serie
+  // completa arriva già con la risposta.
+  perfViewPoints(performance, key) {
+    const view = performance && performance.ranges ? performance.ranges[key] : null;
+    if (!view) return [];
+    const series = Array.isArray(performance.series) ? performance.series : [];
+    const points = [{ t: view.fromMs, balance: view.anchorBalance }];
+    for (const p of series) {
+        if (p.t >= view.fromMs) points.push({ t: p.t, balance: p.balance });
+    }
+    points.push({ t: performance.nowMs, balance: performance.currentBalance });
+    return points;
+  }
+
+  perfChips() {
+    const chips = [['1w', '1S'], ['1m', '1M'], ['3m', '3M'], ['6m', '6M'], ['conn', 'Dalla connessione']];
+    return `
+      <div class="perf-ranges" role="group" aria-label="Periodo del grafico">
+        ${chips.map(([key, label]) => `
+          <button type="button" class="perf-chip${this.perfRange === key ? ' is-active' : ''}"
+                  aria-pressed="${this.perfRange === key}"
+                  onclick="autoData.setPerfRange('${key}')">${label}</button>`).join('')}
+      </div>`;
+  }
+
+  // Cambio vista: ridisegna la sola card Performance con i dati già in memoria.
+  setPerfRange(key) {
+    if (!this.perfData || this.perfRange === key) return;
+    this.perfRange = key;
+    const host = document.querySelector('.perf-card');
+    if (!host) return;
+    const wrap = document.createElement('div');
+    wrap.innerHTML = this.perfCard(this.perfData);
+    const fresh = wrap.firstElementChild;
+    if (!fresh) return;
+    host.replaceWith(fresh);
+    this.perfPoints = this.perfViewPoints(this.perfData, key);
+    this.bindPerfHover(fresh);
+  }
+
   // ---------- Card Performance (grafico dal giorno della connessione) ----------
   perfCard(performance) {
     if (!performance || performance.__error) {
@@ -183,28 +246,35 @@ class AutoAccountData {
         <div class="pf-empty">Dati performance non disponibili${performance && performance.__error ? `: ${performance.__error}` : ''}.</div>
       </div>`;
     }
-    const connDate = new Date(performance.connectedAt).toLocaleDateString('it-IT');
-    const g = performance.gainPct;
-    const gp = (typeof g === 'number' && isFinite(g))
-        ? this.pnlParts(g)
-        : { cls: 'na', arrow: '', text: 'N/A' };
-    const points = Array.isArray(performance.points) ? performance.points : [];
+    const connDate = this.fmtDay(performance.connectedAt);
+    const view = performance.ranges ? performance.ranges[this.perfRange] : null;
+    const points = this.perfViewPoints(performance, this.perfRange);
     return `
       <div class="card perf-card">
-        <div class="card-h">Performance dal ${connDate}</div>
+        <div class="card-h">Performance <span class="count">(${view ? view.label : 'periodo'})</span></div>
+        ${this.perfChips()}
         <div class="perf-kpis">
-          <div class="stat-tile">
-            <div class="stat-k">Dal giorno della connessione</div>
-            <div class="stat-v ${gp.cls}">${gp.arrow ? `<span class="arrow" aria-hidden="true">${gp.arrow}</span> ` : ''}${gp.text}${gp.text !== 'N/A' ? '<span class="stat-unit">%</span>' : ''}</div>
-            <div class="stat-sub">baseline ${this.fmtNum(performance.baselineBalance)} → attuale ${this.fmtNum(performance.currentBalance)}</div>
-          </div>
+          ${this.pctTile(
+              `Periodo · ${view ? view.label : 'N/A'}`,
+              view ? view.gainPct : null,
+              view ? `riferimento ${this.fmtNum(view.anchorBalance)} → attuale ${this.fmtNum(performance.currentBalance)}` : 'dati non disponibili')}
+          ${this.pctTile(
+              'Dalla connessione',
+              performance.gainPct,
+              `dal ${connDate} · baseline ${this.fmtNum(performance.baselineBalance)}`)}
         </div>
         ${points.length >= 2
-            ? this.perfChart(points, performance.baselineBalance)
+            ? this.perfChart(points, view ? view.anchorBalance : performance.baselineBalance, view ? view.label : '')
             : `<div class="pf-empty">${performance.historyError
                 ? `Storico non disponibile: ${performance.historyError}`
-                : 'La curva apparirà con i primi trade dal giorno della connessione.'}</div>`}
+                : 'La curva apparirà con i primi trade del periodo.'}</div>`}
       </div>`;
+  }
+
+  // Data in formato breve, 'N/A' se il valore non è una data valida.
+  fmtDay(iso) {
+    const d = new Date(iso);
+    return isNaN(d) ? 'N/A' : d.toLocaleDateString('it-IT');
   }
 
   // Grafico a linea del balance: SVG generato a mano, coerente col design system.
@@ -212,7 +282,7 @@ class AutoAccountData {
   // tratteggiata al balance di partenza; griglia recessiva; etichette dirette
   // solo su primo/ultimo punto, mai su tutti (la tabella dei dati è la card
   // "Trade chiusi").
-  perfChart(points, baseline) {
+  perfChart(points, baseline, periodLabel) {
     const W = 640, H = 200, PAD = { t: 16, r: 12, b: 24, l: 56 };
     const iw = W - PAD.l - PAD.r, ih = H - PAD.t - PAD.b;
     const ts = points.map(p => p.t);
@@ -241,7 +311,7 @@ class AutoAccountData {
     return `
       <div class="perf-chart-wrap">
         <svg class="perf-chart" viewBox="0 0 ${W} ${H}" role="img"
-             aria-label="Andamento del balance dal giorno della connessione: da ${this.fmtNum(first.balance)} a ${this.fmtNum(last.balance)}">
+             aria-label="Andamento del balance${periodLabel ? ` · ${periodLabel}` : ''}: da ${this.fmtNum(first.balance)} a ${this.fmtNum(last.balance)}">
           ${grid}
           <line x1="${PAD.l}" y1="${y(baseline).toFixed(1)}" x2="${W - PAD.r}" y2="${y(baseline).toFixed(1)}" class="perf-baseline"/>
           <path d="${area}" class="perf-area"/>
@@ -296,8 +366,8 @@ class AutoAccountData {
     const deals = this.closedDeals(history);
     const balanceOk = balance && !balance.__error;
 
-    this.perfPoints = (performance && !performance.__error && Array.isArray(performance.points))
-        ? performance.points : null;
+    this.perfData = (performance && !performance.__error) ? performance : null;
+    this.perfPoints = this.perfData ? this.perfViewPoints(this.perfData, this.perfRange) : null;
 
     const errors = [];
     if (balance && balance.__error) errors.push(`Info conto: ${balance.__error}`);
