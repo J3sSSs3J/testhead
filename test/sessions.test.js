@@ -40,3 +40,14 @@ test('get: cookie assente o sid sconosciuto -> null', () => {
     assert.strictEqual(store.get(fakeReq(undefined)), null);
     assert.strictEqual(store.get(fakeReq(`${COOKIE_NAME}=nope`)), null);
 });
+
+test('parseCookies: valori malformati (percent-encoding invalido) non lanciano errore', () => {
+    // Cookie con malformed percent-encoding (%  senza digit) e altri cookie validi
+    const result = parseCookies('a=%; ametrades_sid=abc; b=valid');
+    // Deve non lanciare e restituire i cookie, con il valore malformato come stringa raw
+    assert.deepStrictEqual(result, {
+        a: '%',           // valore raw non decodificato
+        ametrades_sid: 'abc',
+        b: 'valid'
+    });
+});
