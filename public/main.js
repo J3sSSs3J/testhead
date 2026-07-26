@@ -15,61 +15,88 @@ const Easing = {
   easeInOutCubic: (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2),
 };
 
+// Le pose delle sezioni sono calibrate su questo aspect (desktop 16:9).
+const DESIGN_ASPECT = 16 / 9;
+
 // ==================== STATO ANIMAZIONE MODELLO ====================
 class AnimationStateManager {
   constructor() {
     this.current = { position: new THREE.Vector3(0, 1.26, 0), rotation: 0, cameraZ: 3 };
-    this.target = { position: new THREE.Vector3(0, 1.26, 0), rotation: 0, cameraZ: 3 };
-    this.transition = { isAnimating: false, progress: 0, duration: 1.2, startTime: 0, easing: Easing.easeInOutCubic };
+    this.start   = { position: new THREE.Vector3(0, 1.26, 0), rotation: 0, cameraZ: 3 };
+    this.target  = { position: new THREE.Vector3(0, 1.26, 0), rotation: 0, cameraZ: 3 };
+    this.transition = { isAnimating: false, duration: 2.0, startTime: 0, easing: Easing.easeInOutCubic, rotationDelta: 0 };
+    this.currentSection = null;
 
-    // Una posa dedicata per ogni sezione navigabile.
+    // Una posa dedicata per ogni sezione navigabile. Nel Portfolio la testa si
+    // sposta sul bordo destro, fuori dalla colonna dei dati, girata verso di essi.
     this.sections = {
-      home:      { position: new THREE.Vector3(0, 1.26, 0),  rotation: 0,     cameraZ: 3.0 },
+      home:      { position: new THREE.Vector3(0, 1.26, 0),   rotation: 0,     cameraZ: 3.0 },
       about:     { position: new THREE.Vector3(1.7, 1.2, 0),  rotation: -0.95, cameraZ: 3.1 },
       projects:  { position: new THREE.Vector3(-1.7, 1.2, 0), rotation: 0.95,  cameraZ: 3.1 },
-      portfolio: { position: new THREE.Vector3(0, 1.5, 0),    rotation: 0,     cameraZ: 4.4 },
+      portfolio: { position: new THREE.Vector3(2.6, 1.25, 0), rotation: -0.7,  cameraZ: 4.2 },
     };
+  }
+
+  // Adatta la posa al viewport: sotto il 16:9 di progetto la camera arretra
+  // (sqrt: compromesso tra inquadratura orizzontale e verticale) e l'offset X
+  // si riscala, così la testa mantiene la stessa posizione RELATIVA nel quadro
+  // su qualsiasi schermo. A 16:9 entrambi i fattori valgono 1: desktop invariato.
+  resolvePose(cfg) {
+    const aspect = window.innerWidth / Math.max(1, window.innerHeight);
+    const zoomOut = Math.sqrt(Math.max(1, DESIGN_ASPECT / aspect));
+    const cameraZ = cfg.cameraZ * zoomOut;
+    const xScale = (cameraZ * aspect) / (cfg.cameraZ * DESIGN_ASPECT);
+    const position = cfg.position.clone();
+    position.x *= xScale;
+    return { position, cameraZ };
   }
 
   transitionTo(section) {
     const cfg = this.sections[section];
     if (!cfg) return;
-    this.target.position.copy(cfg.position);
+    this.currentSection = section;
+    const pose = this.resolvePose(cfg);
+    // Fotografa la posa attuale: anche interrompendo una transizione a metà,
+    // la nuova riparte fluida da dove si trova il modello.
+    this.start.position.copy(this.current.position);
+    this.start.rotation = this.current.rotation;
+    this.start.cameraZ = this.current.cameraZ;
+    this.target.position.copy(pose.position);
     this.target.rotation = cfg.rotation;
-    this.target.cameraZ = cfg.cameraZ;
+    this.target.cameraZ = pose.cameraZ;
+    this.transition.rotationDelta = this.shortestDelta(this.start.rotation, this.target.rotation);
     this.transition.isAnimating = true;
-    this.transition.progress = 0;
     this.transition.startTime = performance.now();
+  }
+
+  // Ricalcola la posa della sezione corrente per il nuovo viewport (resize,
+  // rotazione dello schermo) raggiungendola con la transizione standard.
+  refreshViewport() {
+    if (this.currentSection) this.transitionTo(this.currentSection);
   }
 
   update() {
     if (!this.transition.isAnimating) return;
     const elapsed = (performance.now() - this.transition.startTime) / 1000;
-    this.transition.progress = Math.min(elapsed / this.transition.duration, 1);
+    const t = Math.min(elapsed / this.transition.duration, 1);
+    const k = this.transition.easing(t);
 
-    const smooth = 0.08;
-    this.current.position.lerp(this.target.position, smooth);
-    this.current.rotation = this.lerpAngle(this.current.rotation, this.target.rotation, smooth);
-    this.current.cameraZ = THREE.MathUtils.lerp(this.current.cameraZ, this.target.cameraZ, smooth);
+    this.current.position.lerpVectors(this.start.position, this.target.position, k);
+    this.current.rotation = this.start.rotation + this.transition.rotationDelta * k;
+    this.current.cameraZ = THREE.MathUtils.lerp(this.start.cameraZ, this.target.cameraZ, k);
 
-    const close =
-      this.current.position.distanceTo(this.target.position) < 0.01 &&
-      Math.abs(this.current.rotation - this.target.rotation) < 0.01 &&
-      Math.abs(this.current.cameraZ - this.target.cameraZ) < 0.01;
-
-    if (this.transition.progress >= 0.98 || close) {
+    if (t >= 1) {
       this.transition.isAnimating = false;
-      this.current.position.copy(this.target.position);
       this.current.rotation = this.target.rotation;
-      this.current.cameraZ = this.target.cameraZ;
     }
   }
 
-  lerpAngle(from, to, t) {
+  // Differenza angolare per la via più corta (evita giri completi inutili).
+  shortestDelta(from, to) {
     let diff = to - from;
     while (diff > Math.PI) diff -= 2 * Math.PI;
     while (diff < -Math.PI) diff += 2 * Math.PI;
-    return from + diff * t;
+    return diff;
   }
 }
 
@@ -147,37 +174,35 @@ function loadModel(scene) {
 
 // ==================== LOOP DI RENDERING ====================
 function setupAnimationLoop(renderer, scene, camera, model, state) {
-  // Rotazione idle continua ("il corpo che gira"), disattivata con reduced-motion.
-  const SPIN = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 0.2; // rad/s
-  let last = performance.now();
-  let idle = 0;
+  // Oscillazione da fermo (±~3.5°, periodo ~10s): la testa resta viva nella posa
+  // della sezione senza girare su sé stessa. Disattivata con reduced-motion.
+  const SWAY = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 0.06; // rad
 
   function animate() {
     requestAnimationFrame(animate);
-    const now = performance.now();
-    const dt = Math.min((now - last) / 1000, 0.05);
-    last = now;
-    idle += SPIN * dt;
-
     state.update();
     if (model) {
       model.position.copy(state.current.position);
-      model.rotation.y = state.current.rotation + idle;
+      model.rotation.y = state.current.rotation + SWAY * Math.sin(performance.now() * 0.0006);
     }
-    camera.position.z += (state.current.cameraZ - camera.position.z) * 0.06;
+    camera.position.z = state.current.cameraZ;
     renderer.render(scene, camera);
   }
   animate();
 }
 
 // ==================== NAVIGAZIONE ====================
+const SECTION_ORDER = ['home', 'about', 'projects', 'portfolio'];
+
 function setupNavigation(state) {
   const navLinks = Array.from(document.querySelectorAll('.nav-links a[data-section]'));
   const panels = Array.from(document.querySelectorAll('.panel'));
   const hero = document.getElementById('home');
+  let current = 'home';
 
   function activate(section) {
     if (!state.sections[section]) return;
+    current = section;
     state.transitionTo(section);
 
     navLinks.forEach((a) => a.classList.toggle('is-active', a.dataset.section === section));
@@ -194,22 +219,113 @@ function setupNavigation(state) {
     activate(el.dataset.section);
   });
 
-  return activate;
+  return { activate, getCurrent: () => current };
 }
 
-function onWindowResize(camera, renderer) {
+// ==================== NAVIGAZIONE A SCROLL ====================
+// Un gesto di rotella/swipe/tastiera = una sezione. Se sotto il cursore c'è
+// contenuto che può ancora scorrere (pannello o lista interna), il gesto scorre
+// quello; il cambio sezione scatta solo a inizio/fine contenuto.
+function setupScrollNavigation(activate, getCurrent) {
+  const COOLDOWN = 900;       // ms: assorbe l'inerzia del trackpad
+  const WHEEL_THRESHOLD = 12; // delta minimo per un gesto intenzionale
+  const SWIPE_THRESHOLD = 50; // px di swipe verticale su touch
+  let lastSwitch = 0;
+
+  // Risale da `start` cercando un elemento scrollabile non ancora arrivato
+  // al bordo nella direzione del gesto (dir: 1 = giù, -1 = su).
+  function canScrollContent(start, dir) {
+    let el = start instanceof Element ? start : null;
+    while (el && el !== document.body) {
+      if (el.scrollHeight > el.clientHeight + 1) {
+        const oy = getComputedStyle(el).overflowY;
+        if (oy === 'auto' || oy === 'scroll') {
+          const notAtEnd = dir > 0
+            ? el.scrollTop + el.clientHeight < el.scrollHeight - 1
+            : el.scrollTop > 0;
+          if (notAtEnd) return true;
+        }
+      }
+      el = el.parentElement;
+    }
+    return false;
+  }
+
+  function step(dir) {
+    const next = SECTION_ORDER[SECTION_ORDER.indexOf(getCurrent()) + dir];
+    if (!next) return;
+    lastSwitch = performance.now();
+    activate(next);
+  }
+
+  window.addEventListener('wheel', (e) => {
+    if (!e.deltaY) return;
+    const dir = e.deltaY > 0 ? 1 : -1;
+    // Durante il cooldown si blocca anche lo scroll nativo, così l'inerzia
+    // residua non fa scorrere il pannello appena aperto.
+    if (performance.now() - lastSwitch < COOLDOWN) {
+      e.preventDefault();
+      return;
+    }
+    if (canScrollContent(e.target, dir)) return; // scroll nativo del contenuto
+    e.preventDefault();
+    if (Math.abs(e.deltaY) >= WHEEL_THRESHOLD) step(dir);
+  }, { passive: false });
+
+  let touchStartY = null;
+  window.addEventListener('touchstart', (e) => {
+    touchStartY = e.touches[0].clientY;
+  }, { passive: true });
+  window.addEventListener('touchend', (e) => {
+    if (touchStartY === null) return;
+    const delta = touchStartY - e.changedTouches[0].clientY; // >0 = dito verso l'alto
+    touchStartY = null;
+    if (Math.abs(delta) < SWIPE_THRESHOLD) return;
+    const dir = delta > 0 ? 1 : -1;
+    if (performance.now() - lastSwitch < COOLDOWN) return;
+    if (canScrollContent(e.target, dir)) return;
+    step(dir);
+  }, { passive: true });
+
+  window.addEventListener('keydown', (e) => {
+    if (e.target instanceof Element && e.target.closest('input, textarea, select')) return;
+    let dir = 0;
+    if (e.key === 'ArrowDown' || e.key === 'PageDown') dir = 1;
+    else if (e.key === 'ArrowUp' || e.key === 'PageUp') dir = -1;
+    if (!dir) return;
+    e.preventDefault();
+    const panel = document.querySelector('.panel.is-open');
+    if (panel && canScrollContent(panel.querySelector('.panel-inner') || panel, dir)) {
+      panel.scrollBy({ top: dir * 90, behavior: 'smooth' });
+      return;
+    }
+    if (performance.now() - lastSwitch < COOLDOWN) return;
+    step(dir);
+  });
+}
+
+function onWindowResize(camera, renderer, state) {
+  let poseTimer;
   window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    // Riadatta la posa al nuovo aspect (debounce: durante un drag o una
+    // rotazione arrivano molti resize consecutivi).
+    clearTimeout(poseTimer);
+    poseTimer = setTimeout(() => state.refreshViewport(), 150);
   });
 }
 
 // ==================== INIT ====================
 async function init() {
-  const scene = createScene();
-  const camera = createCamera();
+  // La navigazione parte prima della scena: il sito resta navigabile
+  // (click e scroll) anche se WebGL non è disponibile.
+  const state = new AnimationStateManager();
+  const { activate, getCurrent } = setupNavigation(state);
+  setupScrollNavigation(activate, getCurrent);
+  activate('home');
 
   let renderer;
   try {
@@ -223,6 +339,8 @@ async function init() {
     return;
   }
 
+  const scene = createScene();
+  const camera = createCamera();
   setupLighting(scene);
 
   let model = null;
@@ -234,12 +352,8 @@ async function init() {
     console.error('[ametrades] Modello 3D non caricato:', error);
   }
 
-  const state = new AnimationStateManager();
   setupAnimationLoop(renderer, scene, camera, model, state);
-  onWindowResize(camera, renderer);
-
-  const activate = setupNavigation(state);
-  activate('home');
+  onWindowResize(camera, renderer, state);
 }
 
 if (document.readyState === 'loading') {

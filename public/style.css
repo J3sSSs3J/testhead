@@ -6,17 +6,24 @@
    ========================================================================== */
 
 :root {
-  /* Superfici (near-noir caldo, non nero puro) */
-  --ink:      #0a0e14;
-  --ink-2:    #111721;
-  --ink-3:    #161d29;
-  --line:     #20293a;
-  --line-soft:#182031;
+  /* Superfici (near-noir violaceo: melanzana profonda, non nero puro).
+     La tinta è viola ma gli scalini di luminosità sono quelli della rampa
+     originale, così i rapporti di contrasto già validati restano invariati. */
+  --ink:      #0d0918;
+  --ink-2:    #151029;
+  --ink-3:    #1b1533;
+  --line:     #2b2248;
+  --line-soft:#211b3b;
 
-  /* Testo */
+  /* Base in componenti RGB: serve alle superfici traslucide (nav, footer,
+     velo Portfolio) che prima avevano il fondo hardcoded e restavano indietro
+     a ogni cambio di palette. */
+  --ink-rgb: 13, 9, 24;
+
+  /* Testo — grigi virati sul viola per restare nella stessa famiglia del fondo */
   --text:  #e8e6e0;
-  --muted: #8b94a7;
-  --faint: #566079;
+  --muted: #9a91b0;
+  --faint: #645a80;
 
   /* Accento signature (oro-ottone desaturato) */
   --brass:    #c9a25e;
@@ -70,8 +77,8 @@ body::before {
   z-index: 0;
   pointer-events: none;
   background:
-    radial-gradient(120% 90% at 50% -10%, rgba(201, 162, 94, 0.06) 0%, transparent 55%),
-    radial-gradient(90% 80% at 50% 120%, rgba(30, 45, 75, 0.35) 0%, transparent 60%);
+    radial-gradient(120% 90% at 50% -10%, rgba(201, 162, 94, 0.07) 0%, transparent 55%),
+    radial-gradient(90% 80% at 50% 120%, rgba(96, 44, 150, 0.38) 0%, transparent 60%);
 }
 
 ::selection { background: var(--brass); color: var(--ink); }
@@ -184,7 +191,7 @@ canvas:not(.starfield) {
   justify-content: space-between;
   gap: 20px;
   padding: 0 clamp(18px, 4vw, 46px);
-  background: rgba(10, 14, 20, 0.72);
+  background: rgba(var(--ink-rgb), 0.72);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   border-bottom: 1px solid var(--line-soft);
@@ -344,7 +351,7 @@ canvas:not(.starfield) {
   justify-content: space-between;
   max-width: var(--maxw);
   margin: 0 auto;
-  transition: opacity 0.5s var(--ease);
+  transition: opacity 0.9s var(--ease);
 }
 .hero.is-hidden { pointer-events: none; }
 .hero.is-hidden .hero-content { opacity: 0; pointer-events: none; }
@@ -382,7 +389,9 @@ canvas:not(.starfield) {
   padding: calc(var(--nav-h) + 20px) clamp(18px, 5vw, 60px) calc(var(--foot-h) + 20px);
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.6s var(--ease);
+  /* Allineato alla transizione del modello 3D (~2s): il contenuto entra
+     mentre la testa sta ancora arrivando nella sua posa. */
+  transition: opacity 1.1s var(--ease);
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
@@ -396,7 +405,7 @@ canvas:not(.starfield) {
 .panel-portfolio {
   align-items: flex-start;
   /* velo leggero: stacca i dati dal modello 3D senza spegnere scena e stelle */
-  background: linear-gradient(rgba(10, 14, 20, 0.4), rgba(10, 14, 20, 0.4));
+  background: linear-gradient(rgba(var(--ink-rgb), 0.4), rgba(var(--ink-rgb), 0.4));
 }
 .panel-portfolio .panel-inner { max-width: var(--maxw); margin: 0 auto; }
 
@@ -716,7 +725,7 @@ canvas:not(.starfield) {
   justify-content: space-between;
   gap: 16px;
   padding: 0 clamp(18px, 4vw, 46px);
-  background: rgba(10, 14, 20, 0.72);
+  background: rgba(var(--ink-rgb), 0.72);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   border-top: 1px solid var(--line-soft);
@@ -756,6 +765,13 @@ canvas:not(.starfield) {
 /* ============================================================================
    Responsive
    ========================================================================== */
+/* Su mobile 100vh include la barra URL del browser: dove supportato, l'unità
+   dinamica dvh misura il viewport realmente visibile. */
+@supports (height: 100dvh) {
+  body { min-height: 100dvh; }
+  .hero { min-height: 100dvh; }
+}
+
 @media (max-width: 900px) {
   .pf-cols { grid-template-columns: 1fr; }
   .kpi-row { grid-template-columns: repeat(2, 1fr); }
@@ -764,31 +780,76 @@ canvas:not(.starfield) {
 }
 
 @media (max-width: 680px) {
-  :root { --nav-h: auto; }
-  .nav {
-    flex-wrap: wrap;
-    padding-top: 10px;
-    padding-bottom: 10px;
-    gap: 10px 16px;
+  /* --nav-h resta un NUMERO: con `auto` i calc(var(--nav-h) + …) di hero e
+     pannelli diventano invalidi e l'intero padding decade a 0. */
+  :root { --nav-h: 98px; }
+
+  /* Nav su due righe deterministiche: riga 1 brand + login/stato, riga 2 le
+     voci di sezione. Lo pseudo-elemento a larghezza piena con order intermedio
+     forza l'a-capo tra le due righe. */
+  .nav { flex-wrap: wrap; align-content: center; gap: 6px 10px; }
+  .nav::after { content: ''; width: 100%; height: 0; order: 2; }
+  .nav-links { display: contents; }
+  .nav-login { order: 1; margin-left: auto; padding: 7px 12px !important; }
+  .nav-status { order: 1; margin-left: auto; }
+  .nav-links a[data-section] {
+    order: 3;
+    flex: 1 1 0;
+    text-align: center;
+    padding: 6px 2px;
+    font-size: 0.76rem;
   }
-  .nav-links { width: 100%; justify-content: space-between; order: 3; gap: 2px; }
-  .nav-links a { padding: 6px 4px; font-size: 0.76rem; }
-  .nav-login { margin-left: auto; padding: 6px 12px !important; }
+  .nav-links a::after {
+    left: 50%;
+    right: auto;
+    width: 26px;
+    transform: translateX(-50%) scaleX(0);
+    transform-origin: center;
+  }
+  .nav-links a:hover::after,
+  .nav-links a.is-active::after { transform: translateX(-50%) scaleX(1); }
   .brand-word { font-size: 0.9rem; }
-  /* Su mobile impila il contenuto dall'alto: niente CTA sotto il footer */
-  .hero-content { padding-top: 118px; padding-bottom: 58px; justify-content: flex-start; gap: 16px; }
+
+  /* Su mobile impila il contenuto dall'alto e lo rende scorrevole: sugli
+     schermi più bassi le CTA finirebbero sotto il footer irraggiungibili. */
+  .hero-content {
+    justify-content: flex-start;
+    gap: 16px;
+    overflow-y: auto;
+    pointer-events: auto;
+  }
   .hero-title { margin-top: 8px; }
   .quote-line { margin: 18px 0; }
-  .panel { padding-top: 128px; }
   .quote-line-labels { gap: 12px; font-size: 0.6rem; }
+
+  /* Sui viewport stretti la testa 3D resta dietro al testo: lo stesso velo
+     del Portfolio stacca il contenuto senza spegnere scena e stelle. */
+  .panel-left, .panel-right {
+    background: linear-gradient(rgba(var(--ink-rgb), 0.45), rgba(var(--ink-rgb), 0.45));
+  }
 }
 
 @media (max-width: 460px) {
-  .nav-links { flex-wrap: wrap; justify-content: flex-start; gap: 2px 6px; }
-  .kpi-row { grid-template-columns: 1fr 1fr; }
+  .kpi-row { grid-template-columns: 1fr 1fr; gap: 10px; }
   .foot-hint, .foot-note { display: none; }
   .hero-title { font-size: clamp(2.4rem, 13vw, 3.4rem); }
   .row-top { flex-wrap: wrap; }
+  .card { padding: 16px 14px; }
+  .stat-tile { padding: 14px 14px 12px; }
+  .pf-cta, .pf-error { padding: 24px 20px; }
+}
+
+/* Viewport bassi (telefono in orizzontale): la hero scorre invece di
+   accavallare titolo e CTA. */
+@media (max-height: 520px) {
+  .hero-content {
+    justify-content: flex-start;
+    gap: 14px;
+    overflow-y: auto;
+    pointer-events: auto;
+  }
+  .hero-title { font-size: clamp(1.9rem, 9vh, 3rem); }
+  .quote-line { margin: 14px 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
