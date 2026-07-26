@@ -768,7 +768,9 @@ async function getClosingSeries(ctidTraderAccountId, fromMs, toMs) {
     if (cached && cached.fromMs <= fromMs && (Date.now() - cached.fetchedAt) < DEALS_CACHE_TTL_MS) {
         return cached.series;
     }
-    const series = await collectClosingDeals(ctidTraderAccountId, fromMs, toMs);
+    // Ordine cronologico non garantito da collectClosingDeals: il client disegna
+    // la curva nell'ordine dell'array, quindi va fissato qui prima di esporlo.
+    const series = (await collectClosingDeals(ctidTraderAccountId, fromMs, toMs)).sort((a, b) => a.t - b.t);
     dealsCache.set(ctidTraderAccountId, { fromMs, fetchedAt: Date.now(), series });
     return series;
 }
