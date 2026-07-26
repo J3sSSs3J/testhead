@@ -131,6 +131,34 @@ variare della vista.
   compaiono al trade successivo.
 - Le viste più lunghe dello storico disponibile mostrano solo ciò che esiste.
 
+## Aggiornamento (26/07/2026, dopo la verifica sul conto reale)
+
+Con la finestra a sei mesi lo storico veniva **rifiutato da cTrader**: la
+documentazione ([Getting started](https://help.ctrader.com/open-api/)) fissa un
+massimo di **5 richieste al secondo per connessione** sulle richieste di dati
+storici, e le ~26 richieste consecutive del chunking settimanale lo superavano
+ampiamente. Il chunking stesso era infondato: il limite di 604800000 ms
+riguarda i dati tick e il cash flow, **non** `ProtoOADealListReq`, che non ha
+limite di periodo.
+
+Correzioni applicate:
+
+- `collectClosingDeals` chiede l'**intera finestra in una sola richiesta**;
+  restano solo le iterazioni di paginazione quando i deal superano `maxRows`.
+- Throttle di 250 ms tra richieste storiche (4/s, sotto il limite di 5/s),
+  a protezione della paginazione e di ogni chiamante futuro.
+- Aggiunta la vista **1 anno** (`1y`, 365 giorni): con una sola richiesta costa
+  quanto una settimana. La finestra recuperata diventa
+  `historyWindowStart(nowMs, connectedAtMs)` = il più indietro tra un anno fa e
+  la connessione; la durata deriva dalla vista più lunga, così aggiungerne una
+  non richiede di aggiornare due punti.
+- Con storico fallito e serie vuota la curva non viene più disegnata: restava
+  una retta piatta di due punti sintetici accanto all'avviso, leggibile come
+  andamento costante misurato invece che come dato assente.
+
+Il limite dichiarato "il primo caricamento paga ~26 round-trip" non vale più:
+è una richiesta sola.
+
 ## Fuori scope
 
 - Downsampling dei punti (uno per trade chiuso è adeguato ai volumi attesi).

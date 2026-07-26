@@ -47,22 +47,33 @@ test('nextDealCursor: fine blocco, paginazione, guardie anti-loop', () => {
     assert.strictEqual(nextDealCursor({ hasMore: true, lastDealTimestamp: 2500 }, 1000, 2000), 2000);
 });
 
-const { rangeWindows, buildRangeViews } = require('../lib/performance');
+const { rangeWindows, buildRangeViews, historyWindowStart } = require('../lib/performance');
 
 const DAY = 24 * 60 * 60 * 1000;
 
-test('rangeWindows: cinque finestre nell ordine atteso con inizi corretti', () => {
+test('rangeWindows: sei finestre nell ordine atteso con inizi corretti', () => {
     const now = 1_000_000_000_000;
     const conn = now - 3 * DAY;
     const w = rangeWindows(now, conn);
-    assert.deepStrictEqual(w.map(x => x.key), ['1w', '1m', '3m', '6m', 'conn']);
+    assert.deepStrictEqual(w.map(x => x.key), ['1w', '1m', '3m', '6m', '1y', 'conn']);
     assert.strictEqual(w[0].fromMs, now - 7 * DAY);
     assert.strictEqual(w[1].fromMs, now - 30 * DAY);
     assert.strictEqual(w[2].fromMs, now - 90 * DAY);
     assert.strictEqual(w[3].fromMs, now - 180 * DAY);
-    assert.strictEqual(w[4].fromMs, conn);
-    assert.strictEqual(w[4].label, 'Dalla connessione');
+    assert.strictEqual(w[4].fromMs, now - 365 * DAY);
+    assert.strictEqual(w[4].label, '1 anno');
+    assert.strictEqual(w[5].fromMs, conn);
+    assert.strictEqual(w[5].label, 'Dalla connessione');
     assert.strictEqual(w[0].label, '1 settimana');
+});
+
+// La finestra più ampia deve coprire la vista più lunga: se coprisse solo sei
+// mesi, la vista a 1 anno mostrerebbe dati troncati senza dirlo.
+test('historyWindowStart: parte da un anno indietro, o dalla connessione se più vecchia', () => {
+    const now = 1_000_000_000_000;
+    assert.strictEqual(historyWindowStart(now, now - 10 * DAY), now - 365 * DAY);
+    const oldConn = now - 500 * DAY;
+    assert.strictEqual(historyWindowStart(now, oldConn), oldConn);
 });
 
 test('buildRangeViews: ancora = ultimo punto prima della finestra', () => {

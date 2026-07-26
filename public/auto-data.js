@@ -216,7 +216,7 @@ class AutoAccountData {
   }
 
   perfChips() {
-    const chips = [['1w', '1S'], ['1m', '1M'], ['3m', '3M'], ['6m', '6M'], ['conn', 'Dalla connessione']];
+    const chips = [['1w', '1S'], ['1m', '1M'], ['3m', '3M'], ['6m', '6M'], ['1y', '1A'], ['conn', 'Dalla connessione']];
     return `
       <div class="perf-ranges" role="group" aria-label="Periodo del grafico">
         ${chips.map(([key, label]) => `
@@ -262,6 +262,10 @@ class AutoAccountData {
     // la vista "conn" resta valida perché è baseline -> attuale, indipendente
     // dallo storico dei trade chiusi.
     const periodBlocked = !!performance.historyError && this.perfRange !== 'conn';
+    // Senza alcun punto reale la curva sarebbe una retta piatta di soli due
+    // punti sintetici: accanto all'avviso di errore sembrerebbe un andamento
+    // costante misurato, invece di dati assenti. Meglio il solo avviso.
+    const noSeries = !Array.isArray(performance.series) || performance.series.length === 0;
     const periodPct = periodBlocked ? null : (view ? view.gainPct : null);
     const periodSub = periodBlocked
         ? 'storico non disponibile'
@@ -278,7 +282,7 @@ class AutoAccountData {
               `dal ${connDate} · baseline ${this.fmtNum(performance.baselineBalance)}`)}
         </div>
         ${performance.historyError ? `<div class="pf-empty">Storico non disponibile: ${performance.historyError}</div>` : ''}
-        ${points.length >= 2
+        ${points.length >= 2 && !noSeries
             ? this.perfChart(points, view ? view.anchorBalance : performance.baselineBalance, view ? view.label : '')
             : (performance.historyError ? '' : `<div class="pf-empty">La curva apparirà con i primi trade del periodo.</div>`)}
       </div>`;

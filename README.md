@@ -67,7 +67,7 @@ e riavvia il server. Il default (se la chiave manca) è il server **demo**
 | `GET /api/balance?accountId=…` | Info conto (balance, leva, broker, …) |
 | `GET /api/positions?accountId=…` | Posizioni aperte e ordini pendenti (con `symbolName`) |
 | `GET /api/history?accountId=…&from=…&to=…&maxRows=…` | Storico deal (con `symbolName`) |
-| `GET /api/performance?accountId=…` | Serie del balance (fino a 6 mesi, in cache 2 minuti) con le viste 1 settimana / 1 mese / 3 mesi / 6 mesi / dalla connessione |
+| `GET /api/performance?accountId=…` | Serie del balance (fino a 1 anno, in cache 2 minuti) con le viste 1 settimana / 1 mese / 3 mesi / 6 mesi / 1 anno / dalla connessione |
 
 ## Multi-utente
 

@@ -39,7 +39,7 @@ if (!CONFIG.CLIENT_ID || !CONFIG.CLIENT_SECRET) {
 // ============================================================
 const { SessionStore } = require('./lib/sessions');
 const { ConnectionsRegistry } = require('./lib/connections');
-const { buildPerformancePoints, computeGainPct, nextDealCursor, rangeWindows, buildRangeViews } = require('./lib/performance');
+const { buildPerformancePoints, computeGainPct, nextDealCursor, rangeWindows, historyWindowStart, buildRangeViews } = require('./lib/performance');
 
 // Sessioni per-browser: ogni browser ha il proprio token cTrader in memoria.
 const sessionStore = new SessionStore();
@@ -720,16 +720,30 @@ app.get('/api/history', async (req, res) => {
     }
 });
 
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+// cTrader consente al massimo 5 richieste al secondo per connessione sulle
+// richieste di dati storici (https://help.ctrader.com/open-api/): superarlo le
+// fa rifiutare. Teniamo un margine a 4/s serializzando le chiamate.
+const HISTORICAL_MIN_GAP_MS = 250;
+let lastHistoricalAt = 0;
 
-// Tutti i deal di chiusura dal giorno della connessione a oggi, letti a
-// blocchi di 7 giorni (limite del periodo di OA_DEAL_LIST_REQ) con
-// paginazione hasMore dentro ogni blocco.
+async function throttleHistorical() {
+    const wait = lastHistoricalAt + HISTORICAL_MIN_GAP_MS - Date.now();
+    if (wait > 0) await new Promise(r => setTimeout(r, wait));
+    lastHistoricalAt = Date.now();
+}
+
+// Tutti i deal di chiusura della finestra richiesta. OA_DEAL_LIST_REQ non ha
+// limite di periodo (il vincolo di una settimana riguarda i dati tick e il
+// cash flow), quindi si chiede l'intera finestra in una volta: chiederla a
+// blocchi settimanali significava ~26 richieste per sei mesi, ben oltre il
+// limite di 5/s, ed era la causa dei rifiuti dello storico. Restano le
+// iterazioni di paginazione quando i deal superano maxRows.
 async function collectClosingDeals(ctidTraderAccountId, fromMs, toMs) {
     const collected = [];
     let cursor = fromMs;
     while (cursor < toMs) {
-        const chunkEnd = Math.min(cursor + WEEK_MS, toMs);
+        const chunkEnd = toMs;
+        await throttleHistorical();
         const resp = await getDealList(ctidTraderAccountId, cursor, chunkEnd, 1000);
         const deals = resp.payload.deal || [];
         for (const d of deals) {
@@ -752,17 +766,15 @@ async function collectClosingDeals(ctidTraderAccountId, fromMs, toMs) {
     return collected;
 }
 
-const SIX_MONTHS_MS = 180 * 24 * 60 * 60 * 1000;
 const DEALS_CACHE_TTL_MS = 2 * 60 * 1000;
 
 // accountId -> { fromMs, fetchedAt, series }
 const dealsCache = new Map();
 
-// Sei mesi di storico sono ~26 richieste sequenziali a cTrader (le finestre di
-// OA_DEAL_LIST_REQ sono di 7 giorni): rifarle a ogni interazione renderebbe il
-// cambio vista inutilizzabile. La voce si riusa solo se copre la finestra
-// richiesta ed è più recente del TTL; entro quel minuto scarso la serie può
-// non includere un trade appena chiuso, ma il balance attuale è sempre fresco.
+// La serie storica non cambia mentre l'utente passa da una vista all'altra:
+// la voce si riusa se copre la finestra richiesta ed è più recente del TTL.
+// Entro quei due minuti la serie può non includere un trade appena chiuso, ma
+// il balance attuale è sempre fresco.
 async function getClosingSeries(ctidTraderAccountId, fromMs, toMs) {
     const cached = dealsCache.get(ctidTraderAccountId);
     if (cached && cached.fromMs <= fromMs && (Date.now() - cached.fetchedAt) < DEALS_CACHE_TTL_MS) {
@@ -800,9 +812,7 @@ app.get('/api/performance', async (req, res) => {
         const trader = traderResp.payload.trader || traderResp.payload;
         const currentBalance = trader.balance / Math.pow(10, trader.moneyDigits || 2);
 
-        // La finestra recuperata copre la vista più lunga: sei mesi, o la
-        // connessione se è più vecchia.
-        const windowFromMs = Math.min(nowMs - SIX_MONTHS_MS, connectedAtMs);
+        const windowFromMs = historyWindowStart(nowMs, connectedAtMs);
 
         // Se lo storico fallisce la curva degrada ad assente, ma i KPI
         // (baseline -> attuale) restano calcolabili: niente 500 totale.
