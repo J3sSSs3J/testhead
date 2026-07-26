@@ -438,14 +438,23 @@ async function ensureAccountAuth(session, ctidTraderAccountId) {
     // Prima connessione di questo account al sito: registra data e baseline.
     // Ai login successivi la voce esiste già e non viene mai toccata.
     if (!connections.get(ctidTraderAccountId)) {
-        const resp = await getTraderInfo(ctidTraderAccountId);
-        const trader = resp.payload.trader || resp.payload;
-        const divisor = Math.pow(10, trader.moneyDigits || 2);
-        const entry = connections.ensure(ctidTraderAccountId, {
-            connectedAt: new Date().toISOString(),
-            baselineBalance: trader.balance / divisor,
-        });
-        console.log(`[CONNECTIONS] Account ${ctidTraderAccountId} connesso il ${entry.connectedAt} con baseline ${entry.baselineBalance}`);
+        try {
+            const resp = await getTraderInfo(ctidTraderAccountId);
+            const trader = resp.payload.trader || resp.payload;
+            const divisor = Math.pow(10, trader.moneyDigits || 2);
+            const baseline = trader.balance / divisor;
+            if (Number.isFinite(baseline)) {
+                const entry = connections.ensure(ctidTraderAccountId, {
+                    connectedAt: new Date().toISOString(),
+                    baselineBalance: baseline,
+                });
+                console.log(`[CONNECTIONS] Account ${ctidTraderAccountId} connesso il ${entry.connectedAt} con baseline ${entry.baselineBalance}`);
+            } else {
+                console.error('[CONNECTIONS] Registrazione rinviata per ' + ctidTraderAccountId + ': balance non disponibile');
+            }
+        } catch (err) {
+            console.error('[CONNECTIONS] Registrazione rinviata per ' + ctidTraderAccountId + ': ' + err.message);
+        }
     }
 }
 
