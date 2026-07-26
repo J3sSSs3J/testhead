@@ -39,6 +39,7 @@ if (!CONFIG.CLIENT_ID || !CONFIG.CLIENT_SECRET) {
 // ============================================================
 const { SessionStore } = require('./lib/sessions');
 const { ConnectionsRegistry } = require('./lib/connections');
+const { buildPerformancePoints, computeGainPct, nextDealCursor } = require('./lib/performance');
 
 // Sessioni per-browser: ogni browser ha il proprio token cTrader in memoria.
 const sessionStore = new SessionStore();
@@ -694,6 +695,89 @@ app.get('/api/history', async (req, res) => {
         res.json({
             deals,
             hasMore: resp.payload.hasMore || false,
+        });
+    } catch (err) {
+        res.status(err.status || 500).json({ error: err.message });
+    }
+});
+
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+// Tutti i deal di chiusura dal giorno della connessione a oggi, letti a
+// blocchi di 7 giorni (limite del periodo di OA_DEAL_LIST_REQ) con
+// paginazione hasMore dentro ogni blocco.
+async function collectClosingDeals(ctidTraderAccountId, fromMs, toMs) {
+    const collected = [];
+    let cursor = fromMs;
+    while (cursor < toMs) {
+        const chunkEnd = Math.min(cursor + WEEK_MS, toMs);
+        const resp = await getDealList(ctidTraderAccountId, cursor, chunkEnd, 1000);
+        const deals = resp.payload.deal || [];
+        for (const d of deals) {
+            if (!d.closePositionDetail) continue;
+            const digits = d.closePositionDetail.moneyDigits != null
+                ? d.closePositionDetail.moneyDigits
+                : (d.moneyDigits != null ? d.moneyDigits : 2);
+            collected.push({
+                t: Number(d.executionTimestamp),
+                balance: d.closePositionDetail.balance / Math.pow(10, digits),
+            });
+        }
+        const last = deals.length ? Number(deals[deals.length - 1].executionTimestamp) : NaN;
+        cursor = nextDealCursor(
+            { hasMore: !!resp.payload.hasMore, lastDealTimestamp: last },
+            cursor,
+            chunkEnd
+        );
+    }
+    return collected;
+}
+
+// --- API: Performance dal giorno della connessione ---
+app.get('/api/performance', async (req, res) => {
+    try {
+        const accountId = parseInt(req.query.accountId, 10);
+        if (!accountId) {
+            return res.status(400).json({ error: 'Missing accountId parameter' });
+        }
+        const session = sessionStore.get(req);
+        await ensureAccountAuth(session, accountId);
+
+        const entry = connections.get(accountId);
+        if (!entry) {
+            return res.status(503).json({ error: 'Connessione non ancora registrata, riprova' });
+        }
+        const connectedAtMs = Date.parse(entry.connectedAt);
+        const nowMs = Date.now();
+
+        const traderResp = await getTraderInfo(accountId);
+        const trader = traderResp.payload.trader || traderResp.payload;
+        const currentBalance = trader.balance / Math.pow(10, trader.moneyDigits || 2);
+
+        // Se lo storico fallisce la curva degrada ad assente, ma il KPI
+        // (baseline -> attuale) resta calcolabile: niente 500 totale.
+        let deals = [];
+        let historyError = null;
+        try {
+            deals = await collectClosingDeals(accountId, connectedAtMs, nowMs);
+        } catch (err) {
+            historyError = err.message;
+            console.error(`[API] Storico performance non disponibile per ${accountId}: ${err.message}`);
+        }
+
+        res.json({
+            connectedAt: entry.connectedAt,
+            baselineBalance: entry.baselineBalance,
+            currentBalance,
+            gainPct: computeGainPct(entry.baselineBalance, currentBalance),
+            points: historyError ? [] : buildPerformancePoints({
+                connectedAtMs,
+                baselineBalance: entry.baselineBalance,
+                deals,
+                nowMs,
+                currentBalance,
+            }),
+            historyError,
         });
     } catch (err) {
         res.status(err.status || 500).json({ error: err.message });

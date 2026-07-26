@@ -67,6 +67,16 @@ e riavvia il server. Il default (se la chiave manca) è il server **demo**
 | `GET /api/balance?accountId=…` | Info conto (balance, leva, broker, …) |
 | `GET /api/positions?accountId=…` | Posizioni aperte e ordini pendenti (con `symbolName`) |
 | `GET /api/history?accountId=…&from=…&to=…&maxRows=…` | Storico deal (con `symbolName`) |
+| `GET /api/performance?accountId=…` | Curva balance e % di performance dal giorno della prima connessione dell'account |
+
+## Multi-utente
+
+Ogni browser ha la propria sessione (cookie `ametrades_sid`): più utenti possono
+essere loggati contemporaneamente, ognuno vede solo i propri account. Alla prima
+autorizzazione di un account il server registra data di connessione e balance di
+partenza in `data/connections.json` (non committato): da lì parte il grafico
+"Performance" del Portfolio. I token restano solo in memoria: al riavvio si
+rifà il login, ma data e baseline della connessione sopravvivono.
 
 ## Limiti noti
 
