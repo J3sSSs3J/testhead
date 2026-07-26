@@ -39,7 +39,7 @@ if (!CONFIG.CLIENT_ID || !CONFIG.CLIENT_SECRET) {
 // ============================================================
 const { SessionStore } = require('./lib/sessions');
 const { ConnectionsRegistry } = require('./lib/connections');
-const { buildPerformancePoints, computeGainPct, nextDealCursor } = require('./lib/performance');
+const { buildPerformancePoints, computeGainPct, nextDealCursor, rangeWindows, buildRangeViews } = require('./lib/performance');
 
 // Sessioni per-browser: ogni browser ha il proprio token cTrader in memoria.
 const sessionStore = new SessionStore();
@@ -752,6 +752,27 @@ async function collectClosingDeals(ctidTraderAccountId, fromMs, toMs) {
     return collected;
 }
 
+const SIX_MONTHS_MS = 180 * 24 * 60 * 60 * 1000;
+const DEALS_CACHE_TTL_MS = 2 * 60 * 1000;
+
+// accountId -> { fromMs, fetchedAt, series }
+const dealsCache = new Map();
+
+// Sei mesi di storico sono ~26 richieste sequenziali a cTrader (le finestre di
+// OA_DEAL_LIST_REQ sono di 7 giorni): rifarle a ogni interazione renderebbe il
+// cambio vista inutilizzabile. La voce si riusa solo se copre la finestra
+// richiesta ed è più recente del TTL; entro quel minuto scarso la serie può
+// non includere un trade appena chiuso, ma il balance attuale è sempre fresco.
+async function getClosingSeries(ctidTraderAccountId, fromMs, toMs) {
+    const cached = dealsCache.get(ctidTraderAccountId);
+    if (cached && cached.fromMs <= fromMs && (Date.now() - cached.fetchedAt) < DEALS_CACHE_TTL_MS) {
+        return cached.series;
+    }
+    const series = await collectClosingDeals(ctidTraderAccountId, fromMs, toMs);
+    dealsCache.set(ctidTraderAccountId, { fromMs, fetchedAt: Date.now(), series });
+    return series;
+}
+
 // --- API: Performance dal giorno della connessione ---
 app.get('/api/performance', async (req, res) => {
     try {
@@ -773,27 +794,41 @@ app.get('/api/performance', async (req, res) => {
         const trader = traderResp.payload.trader || traderResp.payload;
         const currentBalance = trader.balance / Math.pow(10, trader.moneyDigits || 2);
 
-        // Se lo storico fallisce la curva degrada ad assente, ma il KPI
-        // (baseline -> attuale) resta calcolabile: niente 500 totale.
-        let deals = [];
+        // La finestra recuperata copre la vista più lunga: sei mesi, o la
+        // connessione se è più vecchia.
+        const windowFromMs = Math.min(nowMs - SIX_MONTHS_MS, connectedAtMs);
+
+        // Se lo storico fallisce la curva degrada ad assente, ma i KPI
+        // (baseline -> attuale) restano calcolabili: niente 500 totale.
+        let series = [];
         let historyError = null;
         try {
-            deals = await collectClosingDeals(accountId, connectedAtMs, nowMs);
+            series = await getClosingSeries(accountId, windowFromMs, nowMs);
         } catch (err) {
             historyError = err.message;
             console.error(`[API] Storico performance non disponibile per ${accountId}: ${err.message}`);
         }
 
+        const windows = rangeWindows(nowMs, connectedAtMs);
+
         res.json({
             connectedAt: entry.connectedAt,
             baselineBalance: entry.baselineBalance,
             currentBalance,
+            nowMs,
             gainPct: computeGainPct(entry.baselineBalance, currentBalance),
             points: historyError ? [] : buildPerformancePoints({
                 connectedAtMs,
                 baselineBalance: entry.baselineBalance,
-                deals,
+                deals: series,
                 nowMs,
+                currentBalance,
+            }),
+            series: historyError ? [] : series,
+            ranges: buildRangeViews({
+                series: historyError ? [] : series,
+                windows,
+                baselineBalance: entry.baselineBalance,
                 currentBalance,
             }),
             historyError,
