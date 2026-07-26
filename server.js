@@ -37,12 +37,17 @@ if (!CONFIG.CLIENT_ID || !CONFIG.CLIENT_SECRET) {
 // ============================================================
 // STATE
 // ============================================================
-let accessToken = null;
-let refreshToken = null;
+const { SessionStore } = require('./lib/sessions');
+const { ConnectionsRegistry } = require('./lib/connections');
+
+// Sessioni per-browser: ogni browser ha il proprio token cTrader in memoria.
+const sessionStore = new SessionStore();
+// Registro persistente: prima connessione di ogni account (data + baseline).
+const connections = new ConnectionsRegistry(path.join(__dirname, 'data', 'connections.json'));
+
 let wsConnection = null;
 let isAppAuthorized = false;
 let authorizedAccounts = new Set();
-let accountsList = [];
 
 // Cache nomi simboli: ctidTraderAccountId -> Map(symbolId -> symbolName)
 const symbolNameCache = new Map();
@@ -155,13 +160,13 @@ function exchangeCodeForToken(code) {
 /**
  * Refresh access token
  */
-function refreshAccessToken() {
+function refreshAccessToken(session) {
     return new Promise((resolve, reject) => {
-        if (!refreshToken) return reject(new Error('No refresh token available'));
+        if (!session.refreshToken) return reject(new Error('No refresh token available'));
 
         const params = new URLSearchParams({
             grant_type: 'refresh_token',
-            refresh_token: refreshToken,
+            refresh_token: session.refreshToken,
             client_id: CONFIG.CLIENT_ID,
             client_secret: CONFIG.CLIENT_SECRET,
         });
@@ -182,8 +187,8 @@ function refreshAccessToken() {
                     if (parsed.errorCode) {
                         reject(new Error(`Refresh error: ${parsed.errorCode} - ${parsed.description}`));
                     } else {
-                        accessToken = parsed.accessToken;
-                        refreshToken = parsed.refreshToken;
+                        session.accessToken = parsed.accessToken;
+                        session.refreshToken = parsed.refreshToken;
                         resolve(parsed);
                     }
                 } catch (e) {
@@ -312,21 +317,21 @@ async function applicationAuth() {
     return resp;
 }
 
-async function getAccountsByToken() {
+async function getAccountsByToken(session) {
     const resp = await sendMessage(PayloadType.OA_GET_ACCOUNTS_BY_ACCESS_TOKEN_REQ, {
-        accessToken: accessToken,
+        accessToken: session.accessToken,
     });
     if (resp.payloadType === PayloadType.OA_GET_ACCOUNTS_BY_ACCESS_TOKEN_RES) {
-        accountsList = resp.payload.ctidTraderAccount || [];
-        console.log(`[API] Found ${accountsList.length} accounts`);
+        session.accounts = resp.payload.ctidTraderAccount || [];
+        console.log(`[API] Found ${session.accounts.length} accounts (sid ${session.sid.slice(0, 8)}…)`);
     }
     return resp;
 }
 
-async function accountAuth(ctidTraderAccountId) {
+async function accountAuth(session, ctidTraderAccountId) {
     const resp = await sendMessage(PayloadType.OA_ACCOUNT_AUTH_REQ, {
         ctidTraderAccountId: ctidTraderAccountId,
-        accessToken: accessToken,
+        accessToken: session.accessToken,
     });
     if (resp.payloadType === PayloadType.OA_ACCOUNT_AUTH_RES) {
         authorizedAccounts.add(ctidTraderAccountId);
@@ -390,8 +395,8 @@ async function loadSymbolNames(ctidTraderAccountId) {
 // (+ account auth alla prima richiesta) prima di rispondere.
 // ============================================================
 
-async function ensureConnection() {
-    if (!accessToken) {
+async function ensureConnection(session) {
+    if (!session || !session.accessToken) {
         throw apiError('Not authenticated. Please login first.', 401);
     }
     if (!wsConnection || wsConnection.readyState !== WebSocket.OPEN) {
@@ -400,18 +405,20 @@ async function ensureConnection() {
     }
     if (!isAppAuthorized) {
         await applicationAuth();
+    }
+    if (session.accounts.length === 0) {
         try {
-            await getAccountsByToken();
+            await getAccountsByToken(session);
         } catch (err) {
             console.error('[API] Could not refresh accounts list:', err.message);
         }
     }
 }
 
-async function ensureAccountAuth(ctidTraderAccountId) {
-    await ensureConnection();
+async function ensureAccountAuth(session, ctidTraderAccountId) {
+    await ensureConnection(session);
     if (!authorizedAccounts.has(ctidTraderAccountId)) {
-        await accountAuth(ctidTraderAccountId);
+        await accountAuth(session, ctidTraderAccountId);
         // Dopo l'autorizzazione recupera i nomi simboli (degrada se fallisce)
         await loadSymbolNames(ctidTraderAccountId);
     }
@@ -427,14 +434,14 @@ app.use(express.json());
 
 // --- Login redirect (alias: /login-ctrader-oauth, usato dai pulsanti del sito) ---
 function handleLogin(req, res) {
+    sessionStore.ensure(req, res);
     const params = new URLSearchParams({
         client_id: CONFIG.CLIENT_ID,
         redirect_uri: CONFIG.REDIRECT_URI,
         scope: 'trading',
         product: 'web',
     });
-    const url = `${CONFIG.AUTH_URL}?${params.toString()}`;
-    res.redirect(url);
+    res.redirect(`${CONFIG.AUTH_URL}?${params.toString()}`);
 }
 
 app.get('/login', handleLogin);
@@ -446,24 +453,20 @@ app.get('/callback', async (req, res) => {
     if (!code) {
         return res.status(400).send('Missing authorization code');
     }
-
+    const session = sessionStore.ensure(req, res);
     try {
-        // 1. Exchange code for token
         const tokenData = await exchangeCodeForToken(code);
-        accessToken = tokenData.accessToken;
-        refreshToken = tokenData.refreshToken;
+        session.accessToken = tokenData.accessToken;
+        session.refreshToken = tokenData.refreshToken;
         console.log('[AUTH] Token obtained successfully');
 
-        // 2. Connect WebSocket (URL da .env, default demo)
-        await connectWebSocket();
-
-        // 3. Authenticate the application
-        await applicationAuth();
-
-        // 4. Get account list
-        await getAccountsByToken();
-
-        // 5. Torna al sito
+        if (!wsConnection || wsConnection.readyState !== WebSocket.OPEN) {
+            await connectWebSocket();
+        }
+        if (!isAppAuthorized) {
+            await applicationAuth();
+        }
+        await getAccountsByToken(session);
         res.redirect('/');
     } catch (err) {
         console.error('[AUTH] Error:', err.message);
@@ -473,12 +476,14 @@ app.get('/callback', async (req, res) => {
 
 // --- API: Get status (include lista account di base) ---
 app.get('/api/status', (req, res) => {
+    const session = sessionStore.get(req);
+    const accounts = session ? session.accounts : [];
     res.json({
-        authenticated: !!accessToken,
+        authenticated: !!(session && session.accessToken),
         wsConnected: !!(wsConnection && wsConnection.readyState === WebSocket.OPEN),
         appAuthorized: isAppAuthorized,
-        accountsCount: accountsList.length,
-        accounts: accountsList.map(a => ({
+        accountsCount: accounts.length,
+        accounts: accounts.map(a => ({
             id: a.ctidTraderAccountId,
             broker: a.brokerTitleShort || a.brokerName || null,
             login: a.traderLogin != null ? a.traderLogin : null,
@@ -490,10 +495,10 @@ app.get('/api/status', (req, res) => {
 // --- API: List accounts ---
 app.get('/api/accounts', async (req, res) => {
     try {
-        await ensureConnection();
-        const resp = await getAccountsByToken();
-        const accounts = resp.payload.ctidTraderAccount || [];
-        res.json({ accounts });
+        const session = sessionStore.get(req);
+        await ensureConnection(session);
+        const resp = await getAccountsByToken(session);
+        res.json({ accounts: resp.payload.ctidTraderAccount || [] });
     } catch (err) {
         res.status(err.status || 500).json({ error: err.message });
     }
@@ -506,8 +511,9 @@ app.get('/api/balance', async (req, res) => {
         if (!accountId) {
             return res.status(400).json({ error: 'Missing accountId parameter' });
         }
+        const session = sessionStore.get(req);
 
-        await ensureAccountAuth(accountId);
+        await ensureAccountAuth(session, accountId);
         const resp = await getTraderInfo(accountId);
         const trader = resp.payload.trader || resp.payload;
 
@@ -543,8 +549,9 @@ app.get('/api/positions', async (req, res) => {
         if (!accountId) {
             return res.status(400).json({ error: 'Missing accountId parameter' });
         }
+        const session = sessionStore.get(req);
 
-        await ensureAccountAuth(accountId);
+        await ensureAccountAuth(session, accountId);
         const resp = await reconcile(accountId);
         const symbolNames = await loadSymbolNames(accountId);
 
@@ -605,8 +612,9 @@ app.get('/api/history', async (req, res) => {
         if (!accountId) {
             return res.status(400).json({ error: 'Missing accountId parameter' });
         }
+        const session = sessionStore.get(req);
 
-        await ensureAccountAuth(accountId);
+        await ensureAccountAuth(session, accountId);
 
         // Default: last 7 days
         const now = Date.now();
