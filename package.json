@@ -5,7 +5,8 @@
   "description": "Sito ametrades con backend cTrader Open API integrato (Express, sola lettura)",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node --test test/**/*.test.js"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
