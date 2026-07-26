@@ -762,6 +762,28 @@ canvas:not(.starfield) {
 .hero-sub       { animation: rise 0.8s var(--ease) 0.28s both; }
 .hero-actions   { animation: rise 0.8s var(--ease) 0.42s both; }
 
+/* ==================== PERFORMANCE CHART ==================== */
+.perf-card { margin-top: 18px; }
+.perf-kpis { margin-bottom: 14px; }
+.perf-chart-wrap { position: relative; }
+.perf-chart { display: block; width: 100%; height: auto; }
+.perf-grid { stroke: var(--line-soft); stroke-width: 1; }
+.perf-baseline { stroke: var(--faint); stroke-width: 1; stroke-dasharray: 4 4; }
+.perf-line {
+  fill: none; stroke: var(--brass); stroke-width: 2;
+  stroke-linejoin: round; stroke-linecap: round;
+}
+.perf-area { fill: var(--brass-wash); stroke: none; }
+.perf-dot { fill: var(--brass-hi); }
+.perf-tick { fill: var(--muted); font-family: var(--font-mono); font-size: 10px; }
+.perf-tooltip {
+  position: absolute; pointer-events: none;
+  background: rgba(var(--ink-rgb), 0.92);
+  border: 1px solid var(--line); border-radius: 6px;
+  color: var(--text); font-family: var(--font-mono); font-size: 12px;
+  padding: 6px 10px; white-space: nowrap;
+}
+
 /* ============================================================================
    Responsive
    ========================================================================== */

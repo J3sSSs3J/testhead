@@ -87,12 +87,13 @@ class AutoAccountData {
     // Evita la race quando 3 chiamate parallele arrivano su un account non ancora
     // autorizzato (il backend risponderebbe ALREADY_LOGGED_IN alle richieste extra).
     const balance = await fetchJson(`/api/balance?accountId=${id}`).catch(e => ({ __error: e.message }));
-    const [positions, history] = await Promise.all([
+    const [positions, history, performance] = await Promise.all([
       fetchJson(`/api/positions?accountId=${id}`).catch(e => ({ __error: e.message })),
       fetchJson(`/api/history?accountId=${id}&from=${from}&to=${to}&maxRows=100`).catch(e => ({ __error: e.message })),
+      fetchJson(`/api/performance?accountId=${id}`).catch(e => ({ __error: e.message })),
     ]);
 
-    this.showAllData({ balance, positions, history });
+    this.showAllData({ balance, positions, history, performance });
   }
 
   // Refresh dati (usato dal pulsante)
@@ -173,8 +174,115 @@ class AutoAccountData {
     return `<span class="side-tag">${text || 'N/A'}</span>`;
   }
 
+  // ---------- Card Performance (grafico dal giorno della connessione) ----------
+  perfCard(performance) {
+    if (!performance || performance.__error) {
+      return `
+      <div class="card perf-card">
+        <div class="card-h">Performance</div>
+        <div class="pf-empty">Dati performance non disponibili${performance && performance.__error ? `: ${performance.__error}` : ''}.</div>
+      </div>`;
+    }
+    const connDate = new Date(performance.connectedAt).toLocaleDateString('it-IT');
+    const g = performance.gainPct;
+    const gp = (typeof g === 'number' && isFinite(g))
+        ? this.pnlParts(g)
+        : { cls: 'na', arrow: '', text: 'N/A' };
+    const points = Array.isArray(performance.points) ? performance.points : [];
+    return `
+      <div class="card perf-card">
+        <div class="card-h">Performance dal ${connDate}</div>
+        <div class="perf-kpis">
+          <div class="stat-tile">
+            <div class="stat-k">Dal giorno della connessione</div>
+            <div class="stat-v ${gp.cls}">${gp.arrow ? `<span class="arrow" aria-hidden="true">${gp.arrow}</span> ` : ''}${gp.text}${gp.text !== 'N/A' ? '<span class="stat-unit">%</span>' : ''}</div>
+            <div class="stat-sub">baseline ${this.fmtNum(performance.baselineBalance)} → attuale ${this.fmtNum(performance.currentBalance)}</div>
+          </div>
+        </div>
+        ${points.length >= 2
+            ? this.perfChart(points, performance.baselineBalance)
+            : `<div class="pf-empty">${performance.historyError
+                ? `Storico non disponibile: ${performance.historyError}`
+                : 'La curva apparirà con i primi trade dal giorno della connessione.'}</div>`}
+      </div>`;
+  }
+
+  // Grafico a linea del balance: SVG generato a mano, coerente col design system.
+  // Serie unica color brass (nessuna legenda: il titolo la nomina); baseline
+  // tratteggiata al balance di partenza; griglia recessiva; etichette dirette
+  // solo su primo/ultimo punto, mai su tutti (la tabella dei dati è la card
+  // "Trade chiusi").
+  perfChart(points, baseline) {
+    const W = 640, H = 200, PAD = { t: 16, r: 12, b: 24, l: 56 };
+    const iw = W - PAD.l - PAD.r, ih = H - PAD.t - PAD.b;
+    const ts = points.map(p => p.t);
+    const bs = points.map(p => p.balance).concat([baseline]);
+    const t0 = Math.min(...ts), t1 = Math.max(...ts);
+    let b0 = Math.min(...bs), b1 = Math.max(...bs);
+    if (b1 - b0 < 1e-9) { b0 -= 1; b1 += 1; } // serie piatta: evita divisione per zero
+    const margin = (b1 - b0) * 0.08;
+    b0 -= margin; b1 += margin;
+    const x = t => PAD.l + ((t - t0) / Math.max(1, t1 - t0)) * iw;
+    const y = b => PAD.t + (1 - (b - b0) / (b1 - b0)) * ih;
+
+    const line = points.map((p, i) => `${i ? 'L' : 'M'}${x(p.t).toFixed(1)},${y(p.balance).toFixed(1)}`).join(' ');
+    const area = `${line} L${x(t1).toFixed(1)},${(H - PAD.b).toFixed(1)} L${x(t0).toFixed(1)},${(H - PAD.b).toFixed(1)} Z`;
+
+    const grid = [0, 0.5, 1].map(k => {
+        const v = b0 + (b1 - b0) * k;
+        const gy = y(v).toFixed(1);
+        return `<line x1="${PAD.l}" y1="${gy}" x2="${W - PAD.r}" y2="${gy}" class="perf-grid"/>
+            <text x="${PAD.l - 8}" y="${gy}" class="perf-tick" text-anchor="end" dominant-baseline="middle">${v.toFixed(0)}</text>`;
+    }).join('');
+
+    const first = points[0], last = points[points.length - 1];
+    const fmtD = t => new Date(t).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' });
+
+    return `
+      <div class="perf-chart-wrap">
+        <svg class="perf-chart" viewBox="0 0 ${W} ${H}" role="img"
+             aria-label="Andamento del balance dal giorno della connessione: da ${this.fmtNum(first.balance)} a ${this.fmtNum(last.balance)}">
+          ${grid}
+          <line x1="${PAD.l}" y1="${y(baseline).toFixed(1)}" x2="${W - PAD.r}" y2="${y(baseline).toFixed(1)}" class="perf-baseline"/>
+          <path d="${area}" class="perf-area"/>
+          <path d="${line}" class="perf-line"/>
+          <circle cx="${x(last.t).toFixed(1)}" cy="${y(last.balance).toFixed(1)}" r="3.5" class="perf-dot"/>
+          <text x="${PAD.l}" y="${H - 6}" class="perf-tick">${fmtD(first.t)}</text>
+          <text x="${W - PAD.r}" y="${H - 6}" class="perf-tick" text-anchor="end">${fmtD(last.t)}</text>
+        </svg>
+        <div class="perf-tooltip" hidden></div>
+      </div>`;
+  }
+
+  // Tooltip al passaggio: punto più vicino sull'asse tempo. Il bersaglio è
+  // l'intera area del grafico, non il singolo punto (target ampio).
+  bindPerfHover(container) {
+    const svg = container.querySelector('.perf-chart');
+    const tip = container.querySelector('.perf-tooltip');
+    const points = this.perfPoints;
+    if (!svg || !tip || !Array.isArray(points) || points.length < 2) return;
+
+    const W = 640, PAD_L = 56, PAD_R = 12;
+    const t0 = points[0].t, t1 = points[points.length - 1].t;
+
+    svg.addEventListener('pointermove', (e) => {
+        const rect = svg.getBoundingClientRect();
+        const frac = ((e.clientX - rect.left) / rect.width * W - PAD_L) / (W - PAD_L - PAD_R);
+        const t = t0 + Math.max(0, Math.min(1, frac)) * (t1 - t0);
+        let best = points[0];
+        for (const p of points) {
+            if (Math.abs(p.t - t) < Math.abs(best.t - t)) best = p;
+        }
+        tip.textContent = `${new Date(best.t).toLocaleDateString('it-IT')} · ${this.fmtNum(best.balance)}`;
+        tip.hidden = false;
+        tip.style.left = `${Math.max(0, Math.min(rect.width - 130, e.clientX - rect.left + 12))}px`;
+        tip.style.top = '8px';
+    });
+    svg.addEventListener('pointerleave', () => { tip.hidden = true; });
+  }
+
   // ---------- Rendering principale ----------
-  showAllData({ balance, positions, history }) {
+  showAllData({ balance, positions, history, performance }) {
     const el = this.mount();
     if (!el) return;
 
@@ -187,6 +295,9 @@ class AutoAccountData {
       ? positions.orders : [];
     const deals = this.closedDeals(history);
     const balanceOk = balance && !balance.__error;
+
+    this.perfPoints = (performance && !performance.__error && Array.isArray(performance.points))
+        ? performance.points : null;
 
     const errors = [];
     if (balance && balance.__error) errors.push(`Info conto: ${balance.__error}`);
@@ -248,6 +359,8 @@ class AutoAccountData {
             <div class="stat-v">${deals.length}</div>
           </div>
         </div>
+
+        ${this.perfCard(performance)}
 
         <div class="pf-cols">
           <!-- Info conto -->
@@ -343,6 +456,8 @@ class AutoAccountData {
         </div>
       </div>
     `;
+
+    this.bindPerfHover(el);
   }
 
   // Stato non autenticato: invito al login cTrader
