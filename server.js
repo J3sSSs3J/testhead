@@ -205,6 +205,7 @@ function refreshAccessToken(session) {
 // ============================================================
 
 let heartbeatInterval = null;
+let connectPromise = null;
 
 function connectWebSocket() {
     return new Promise((resolve, reject) => {
@@ -246,6 +247,18 @@ function connectWebSocket() {
             pendingRequests.clear();
         });
     });
+}
+
+// Evita che due richieste concorrenti su un socket chiuso avviino ciascuna
+// una propria connectWebSocket(): la seconda chiuderebbe il socket ancora
+// CONNECTING della prima, facendola fallire. Memorizza la promise in corso
+// e la riusa finché non si risolve.
+function ensureWsConnected() {
+    if (wsConnection && wsConnection.readyState === WebSocket.OPEN) return Promise.resolve();
+    if (!connectPromise) {
+        connectPromise = connectWebSocket().finally(() => { connectPromise = null; });
+    }
+    return connectPromise;
 }
 
 function startHeartbeat() {
@@ -402,7 +415,7 @@ async function ensureConnection(session) {
     }
     if (!wsConnection || wsConnection.readyState !== WebSocket.OPEN) {
         console.log('[WS] Not connected, reconnecting...');
-        await connectWebSocket();
+        await ensureWsConnected();
     }
     if (!isAppAuthorized) {
         await applicationAuth();
@@ -412,6 +425,12 @@ async function ensureConnection(session) {
             await getAccountsByToken(session);
         } catch (err) {
             console.error('[API] Could not refresh accounts list:', err.message);
+            // Se non abbiamo mai avuto una lista account valida, non proseguire:
+            // altrimenti assertAccountOwnership rifiuterebbe con un 403 fuorviante
+            // un account che l'utente possiede davvero (fallimento transitorio).
+            if (session.accounts.length === 0) {
+                throw apiError('Elenco account non disponibile, riprova', 503);
+            }
         }
     }
 }
@@ -496,7 +515,7 @@ app.get('/callback', async (req, res) => {
         console.log('[AUTH] Token obtained successfully');
 
         if (!wsConnection || wsConnection.readyState !== WebSocket.OPEN) {
-            await connectWebSocket();
+            await ensureWsConnected();
         }
         if (!isAppAuthorized) {
             await applicationAuth();
