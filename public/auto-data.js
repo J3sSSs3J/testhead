@@ -203,10 +203,14 @@ class AutoAccountData {
     const view = performance && performance.ranges ? performance.ranges[key] : null;
     if (!view) return [];
     const series = Array.isArray(performance.series) ? performance.series : [];
-    const points = [{ t: view.fromMs, balance: view.anchorBalance }];
-    for (const p of series) {
-        if (p.t >= view.fromMs) points.push({ t: p.t, balance: p.balance });
+    const inRange = series.filter(p => p.t >= view.fromMs);
+    const points = [];
+    // L'ancora è sintetica solo se precede il primo punto del periodo: nel caso
+    // di ripiego coincide con esso e non va aggiunta due volte.
+    if (!inRange.length || view.anchorMs < inRange[0].t) {
+        points.push({ t: view.anchorMs, balance: view.anchorBalance });
     }
+    for (const p of inRange) points.push({ t: p.t, balance: p.balance });
     points.push({ t: performance.nowMs, balance: performance.currentBalance });
     return points;
   }
@@ -235,6 +239,10 @@ class AutoAccountData {
     host.replaceWith(fresh);
     this.perfPoints = this.perfViewPoints(this.perfData, key);
     this.bindPerfHover(fresh);
+    // host.replaceWith distrugge il bottone appena premuto: il focus tastiera
+    // va ripristinato sul chip attivo del nodo appena inserito.
+    const active = fresh.querySelector('.perf-chip.is-active');
+    if (active) active.focus();
   }
 
   // ---------- Card Performance (grafico dal giorno della connessione) ----------
@@ -249,25 +257,30 @@ class AutoAccountData {
     const connDate = this.fmtDay(performance.connectedAt);
     const view = performance.ranges ? performance.ranges[this.perfRange] : null;
     const points = this.perfViewPoints(performance, this.perfRange);
+    // Con lo storico fallito il KPI "Periodo" non può mostrare un valore
+    // credibile per le viste a durata fissa (dipendono dalla serie mancante);
+    // la vista "conn" resta valida perché è baseline -> attuale, indipendente
+    // dallo storico dei trade chiusi.
+    const periodBlocked = !!performance.historyError && this.perfRange !== 'conn';
+    const periodPct = periodBlocked ? null : (view ? view.gainPct : null);
+    const periodSub = periodBlocked
+        ? 'storico non disponibile'
+        : (view ? `riferimento ${this.fmtNum(view.anchorBalance)} → attuale ${this.fmtNum(performance.currentBalance)}` : 'dati non disponibili');
     return `
       <div class="card perf-card">
         <div class="card-h">Performance <span class="count">(${view ? view.label : 'periodo'})</span></div>
         ${this.perfChips()}
         <div class="perf-kpis">
-          ${this.pctTile(
-              `Periodo · ${view ? view.label : 'N/A'}`,
-              view ? view.gainPct : null,
-              view ? `riferimento ${this.fmtNum(view.anchorBalance)} → attuale ${this.fmtNum(performance.currentBalance)}` : 'dati non disponibili')}
+          ${this.pctTile(`Periodo · ${view ? view.label : 'N/A'}`, periodPct, periodSub)}
           ${this.pctTile(
               'Dalla connessione',
               performance.gainPct,
               `dal ${connDate} · baseline ${this.fmtNum(performance.baselineBalance)}`)}
         </div>
+        ${performance.historyError ? `<div class="pf-empty">Storico non disponibile: ${performance.historyError}</div>` : ''}
         ${points.length >= 2
             ? this.perfChart(points, view ? view.anchorBalance : performance.baselineBalance, view ? view.label : '')
-            : `<div class="pf-empty">${performance.historyError
-                ? `Storico non disponibile: ${performance.historyError}`
-                : 'La curva apparirà con i primi trade del periodo.'}</div>`}
+            : (performance.historyError ? '' : `<div class="pf-empty">La curva apparirà con i primi trade del periodo.</div>`)}
       </div>`;
   }
 

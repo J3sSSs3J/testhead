@@ -73,6 +73,8 @@ test('buildRangeViews: ancora = ultimo punto prima della finestra', () => {
         currentBalance: 700,
     });
     assert.strictEqual(views['1w'].anchorBalance, 600);
+    // Punto precedente esistente: l'ancora resta a fromMs, la retta è legittima.
+    assert.strictEqual(views['1w'].anchorMs, 250);
     assert.strictEqual(views['1w'].fromMs, 250);
     assert.strictEqual(views['1w'].label, '1 settimana');
     assert.ok(Math.abs(views['1w'].gainPct - (100 / 600) * 100) < 1e-9);
@@ -86,6 +88,9 @@ test('buildRangeViews: senza punti precedenti usa il primo punto del periodo', (
         currentBalance: 800,
     });
     assert.strictEqual(views['6m'].anchorBalance, 700);
+    // Nessun punto prima della finestra: l'ancora si sposta sul tempo del primo
+    // punto del periodo, niente tratto piatto inventato prima di esso.
+    assert.strictEqual(views['6m'].anchorMs, 300);
 });
 
 test('buildRangeViews: serie vuota -> ancora = balance attuale, guadagno 0', () => {
@@ -96,6 +101,7 @@ test('buildRangeViews: serie vuota -> ancora = balance attuale, guadagno 0', () 
         currentBalance: 900,
     });
     assert.strictEqual(views['1m'].anchorBalance, 900);
+    assert.strictEqual(views['1m'].anchorMs, 100);
     assert.strictEqual(views['1m'].gainPct, 0);
 });
 
@@ -107,6 +113,7 @@ test('buildRangeViews: la vista conn resta ancorata alla baseline', () => {
         currentBalance: 500,
     });
     assert.strictEqual(views.conn.anchorBalance, 400);
+    assert.strictEqual(views.conn.anchorMs, 50);
     assert.ok(Math.abs(views.conn.gainPct - 25) < 1e-9);
 });
 

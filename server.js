@@ -770,7 +770,11 @@ async function getClosingSeries(ctidTraderAccountId, fromMs, toMs) {
     }
     // Ordine cronologico non garantito da collectClosingDeals: il client disegna
     // la curva nell'ordine dell'array, quindi va fissato qui prima di esporlo.
-    const series = (await collectClosingDeals(ctidTraderAccountId, fromMs, toMs)).sort((a, b) => a.t - b.t);
+    // Un balance mancante arriva come NaN: senza filtro, JSON lo serializza a
+    // null e il client lo coerce a 0 in Math.min, disegnando un tuffo a zero.
+    const series = (await collectClosingDeals(ctidTraderAccountId, fromMs, toMs))
+        .filter(p => Number.isFinite(p.t) && Number.isFinite(p.balance))
+        .sort((a, b) => a.t - b.t);
     dealsCache.set(ctidTraderAccountId, { fromMs, fetchedAt: Date.now(), series });
     return series;
 }
