@@ -415,12 +415,37 @@ async function ensureConnection(session) {
     }
 }
 
+// L'account richiesto deve appartenere alla sessione del richiedente:
+// con più utenti collegati, senza questo check un cliente potrebbe leggere
+// i dati del conto di un altro passando un accountId altrui.
+function assertAccountOwnership(session, ctidTraderAccountId) {
+    const owned = session.accounts.some(
+        a => Number(a.ctidTraderAccountId) === ctidTraderAccountId
+    );
+    if (!owned) {
+        throw apiError('Account not accessible from this session', 403);
+    }
+}
+
 async function ensureAccountAuth(session, ctidTraderAccountId) {
     await ensureConnection(session);
+    assertAccountOwnership(session, ctidTraderAccountId);
     if (!authorizedAccounts.has(ctidTraderAccountId)) {
         await accountAuth(session, ctidTraderAccountId);
         // Dopo l'autorizzazione recupera i nomi simboli (degrada se fallisce)
         await loadSymbolNames(ctidTraderAccountId);
+    }
+    // Prima connessione di questo account al sito: registra data e baseline.
+    // Ai login successivi la voce esiste già e non viene mai toccata.
+    if (!connections.get(ctidTraderAccountId)) {
+        const resp = await getTraderInfo(ctidTraderAccountId);
+        const trader = resp.payload.trader || resp.payload;
+        const divisor = Math.pow(10, trader.moneyDigits || 2);
+        const entry = connections.ensure(ctidTraderAccountId, {
+            connectedAt: new Date().toISOString(),
+            baselineBalance: trader.balance / divisor,
+        });
+        console.log(`[CONNECTIONS] Account ${ctidTraderAccountId} connesso il ${entry.connectedAt} con baseline ${entry.baselineBalance}`);
     }
 }
 
